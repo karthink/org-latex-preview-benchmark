@@ -1,0 +1,1420 @@
+#+TITLE: Some title
+#+AUTHOR: Author 1
+#+DATE: 2021:04:29
+#+OPTIONS: h:6 num:t toc:nil
+#+PROPERTY: header-args:matlab :session *MATLAB* :results output :exports both :eval never-export :noweb yes
+#+property: header-args:julia  :session *Julia*  :exports both :eval never-export :async t
+# #+SETUPFILE: https://fniessen.github.io/org-html-themes/setup/theme-readtheorg.setup
+# #+HTML_HEAD: <link rel="stylesheet" type="text/css" href="https://gongzhitaao.org/orgcss/org.css"/>
+#+latex_engraved_theme: ef-light
+#+LATEX_CLASS: autart
+#+LATEX_CLASS_OPTIONS: [twocolumn]
+#+LATEX_HEADER: \input{preamble.tex}
+#+latex_header: \usepackage{float}
+#+EXCLUDE_TAGS: noexport
+#+LATEX: \begin{frontmatter}
+#+LATEX: \title{Some title} 
+#+LATEX: \author[ABCDa]{Author 1}\ead{something}
+#+LATEX: \author[ABCDb]{Author 2}\ead{something}
+#+LATEX: \address[ABCDa]{Some address 1}
+#+LATEX: \address[ABCDb]{Some address 2}
+# #+latex_class: article
+# #+latex_class_options: [10pt]
+#+LATEX_HEADER: \usepackage{cancel}
+#+latex_header: \usepackage{mathtools}
+#+BIBLIOGRAPHY: ~/Documents/roam/biblio.bib
+#+EXCLUDE_TAGS: noexport ignore
+#+STARTUP: showall hideblocks 
+
+#+BEGIN_SRC julia :results silent :exports none
+using Pkg; Pkg.activate(".")
+#+END_SRC
+
+The root locus method for analyzing the stability of spatially periodic PDEs.
+
+Consider the general linear spatially periodic PDE with one spatial dimension
+\begin{align}
+\label{eq:general-pde-1}
+\partial_t \psi(t, x) &= \mathcal{A} \psi(t, x) + \mathcal{B} u(t, x) \\
+y(t, x) &= \mathcal{C} \psi(t, x)
+\end{align}
+where \(\mathcal{A}\) is a spatially periodic operator with period \(L \). We assume that we can write \(\mathcal{A} = \mathcal{A}_0 + p(x) \mathcal{A}_1 \), where \(p(x) \) is \(L \)-periodic and \(\mathcal{A}_0 \) and \(\mathcal{A}_1 \) are spatially invariant operators. Then we can write
+\begin{align}
+\label{eq:general-pde-2}
+\partial_t \psi(t, x) & = \mathcal{A}_0 \psi(t, x) + \overbrace{p(x) \underbrace{\mathcal{A}_1 \psi(t, x)}_r}^v + \mathcal{B} u(t, x)\\
+y(t, x) & = \mathcal{C} \psi(t, x)\\
+r(t, x) & = \mathcal{A}_1 \psi(t, x)
+\end{align}
+Which is a system with two inputs \(u \) and \(v \) and two outputs \( y\) and \(r \), with the output \(v \) in feedback with the system through a spatially periodic gain \(p(x) \):
+\begin{align}
+\label{eq:general-pde-feedback-1}
+v(t, x) = p(x) r(t, x)
+\end{align}
+This is illustrated in the block diagram in Fig.~\ref{fig:periodic-pde-block-diagram}.
+#+begin_export latex
+\begin{figure}
+    \centering
+    \def\svgwidth{0.7\columnwidth}
+    \import{figures}{periodic-pde-block-diagram.pdf_tex}
+    \label{fig:periodic-pde-block-diagram}
+    \caption{}
+\end{figure}
+#+end_export
+
+Since the dynamics in the upper block is spatially invariant, we can "diagonalize" it by finding its spatial Fourier transform. The dynamics become
+\begin{align}
+\partial_t \hat{\psi}(t,k) & = A_0(k) \hat{\psi}(t, k) + v(t, k) + B(k) u(t, k) \label{eq:general-pde-3-fourier}\\
+\hat{y}(t, k) &   = C(k) \hat{\psi}(t, k) \\
+\hat{r}(t, k) &   = A_1(k) \hat{\psi}(t, k)
+\end{align}
+The which are decoupled in \(k\). The general input output relations can be written as
+\begin{equation}
+\label{eq:general-pde-operator}
+\begin{bmatrix} \hat{y}(\cdot, k) \\ \hat{r}(\cdot, k) \end{bmatrix} = \begin{bmatrix}
+G_{11,k} & G_{12,k} \\
+G_{21,k} & G_{22,k}
+ \end{bmatrix} \begin{bmatrix} \hat{u}(\cdot,k) \\ \hat{v}(\cdot,k) \end{bmatrix}
+\end{equation}
+Since the gain \(p(x) \) is spatially periodic, \(p(x) = p\left( x + {L} \right) \), \(p \) has a Fourier series expansion in multiples of \(\bar{k} = \frac{2 \pi}{L}\),
+\begin{equation}
+\label{eq:p-fourier-series}
+p(x) = \sum_{l}^{} P_l \exp \left( j l x \frac{2 \pi}{L}  \right) = \sum_{l}^{} P_l \exp \left( j l \bar{k} x\right)
+\end{equation}
+In the feedback block, the product of the \(x \)-periodic gain and the output \(r \) leads to a convolution in the Fourier domain. Using the shift property of the Fourier transform,
+\begin{align}
+v(t, x) & = p(x) r(t, x) \label{eq:general-pde-4}\\
+v(t, x) & = \sum_{l \in Z} P_l\ \left[ e^{j l \bar{k} x} r(t, x) \right] \\
+\hat{v}(t, k) & = \sum_{l \in Z} P_l\ \hat{r}(t, k - \bar{k} l) \label{eq:r-v-lifted}
+\end{align}
+The closed loop system cannot be described by a multiplication operator because \(\hat{r} \) and \(\hat{v} \) are not decoupled in \(k \). However, the output \(\hat{v} \) at a given time \(t \) and wavenumber \(k \) depends only the input \(\hat{r} \) at time \(t \) and at wavenumbers \(k + l \bar{k} \), \(l \in \mathbb{Z} \). We can define a lifting transformation that represents the signals and systems in a higher dimensional space where the dynamics are LTI and decoupled in a Fourier variable.
+
+We define the vector valued transform of the signal \(\hat{r}(t,k) \) as
+\begin{equation}
+\label{eq:lifting-transform-1}
+\hat{R}(t, \tilde{k}) = \begin{bmatrix} \dots & \hat{r}(t, \tilde{k} - \bar{k}) & \hat{r}(t, \tilde{k}) & \hat{r}(t, \tilde{k} + \bar{k}) & \dots \end{bmatrix}
+\end{equation}
+where \(\tilde{k} \in [0, \bar{k}) \). The lifting transform has the following properties:
+
+- \(\hat{R}(t, \tilde{k} - \bar{k}) = \mathcal{S} \hat{R}(t, \tilde{k}) \), where \(\mathcal{S}\) is the right shift operator. Further, \( \hat{R}(t, \tilde{k} - l \bar{k}) = \mathcal{S}^{l} \hat{R}(t, \tilde{k}) \). Thus the information in \(\hat{r}(t, k) \), \(k \in \mathbb{R} \) is contained in \(\hat{R}(t, \tilde{k}) \) in the band \(\tilde{k} \in [0, \bar{k}) \).
+- TODO
+
+Since \(\hat{R}(t, \tilde{k}) \) encodes information about \(\hat{r} \) at \(t \) and for all wavenumbers \(\tilde{k} + l \bar{k} \), \(l \in \mathbb{Z} \), the relation \ref{eq:r-v-lifted} (which is a convolution) can then be written as a matrix vector product with a Toeplitz matrix \(\hat{P} \)
+\begin{align}
+\label{eq:r-v-lifted-matrix}
+\underbrace{\begin{bmatrix} \vdots \\
+\hat{v}(t, \tilde{k} - \bar{k}) \\
+ \hat{v}(t, \tilde{k}) \\
+ \hat{v}(t, \tilde{k} + \bar{k}) \\
+ \vdots  \end{bmatrix}}_{\hat{V}(t, \tilde{k})} & = 
+\underbrace{\begin{bmatrix}
+\ddots & \ddots & \ddots &    &    & & \\
+\dots & P_1 & P_0 & P_{-1} & \dots &      & \\
+ & \dots & P_1 & P_0   & P_{-1} & \dots  & \\
+ &    & \dots & P_1   & P_0   & P_{-1} & \dots\\
+ &    &    &      & \ddots    &  \ddots & \ddots
+\end{bmatrix}}_{\hat{P}}
+\underbrace{\begin{bmatrix} \vdots \\
+\hat{r}(t, \tilde{k} - \bar{k}) \\
+ \hat{r}(t, \tilde{k}) \\
+ \hat{r}(t, \tilde{k} + \bar{k}) \\
+ \vdots  \end{bmatrix}}_{\hat{R}(t, \tilde{k})}
+\end{align}
+In the Laplace domain, this corresponds to the relation
+\begin{equation}
+\label{eq:r-v-lifted-laplace}
+\hat{V}(s, \tilde{k}) = \hat{P} \hat{R}(s, \tilde{k})
+\end{equation}
+
+The spatially invariant block corresponding to equations \ref{eq:general-pde-3-fourier} can be written as
+\begin{align}
+\label{eq:general-pde-operator-spatially-invariant}
+\begin{bmatrix} \hat{y}(s, k) \\ \hat{r}(s, k) \end{bmatrix} = \begin{bmatrix}
+G_{11,k}(s) & G_{12,k}(s) \\
+G_{21,k}(s) & G_{22,k}(s)
+ \end{bmatrix} \begin{bmatrix} \hat{u}(s,k) \\ \hat{v}(s,k) \end{bmatrix} = G_k(s) \begin{bmatrix} \hat{u}(s,k) \\ \hat{v}(s,k) \end{bmatrix}
+\end{align}
+
+Since these relations are decoupled in \(k \), the relationship between the lifted signals \( \hat{Y}(s, \tilde{k})\), \(\hat{R}(s, \tilde{k}) \), \(\hat{U}(s, \tilde{k}) \) and \(\hat{V}(s, \tilde{k}) \) is given by matrix vector products with bi-infinite diagonal matrices:
+\begin{align}
+\begin{bmatrix} \vdots \\ \hat{r}(s, \tilde{k} - \bar{k}) \\
+\hat{r}(s, \tilde{k}) \\
+\hat{r}(s, \tilde{k} + \bar{k}) \\
+\vdots \end{bmatrix} = & 
+ \begin{bmatrix}
+ \ddots &  &  &  & \\
+ & G_{21,\tilde{k} - l \bar{k}} &  &  & \\
+ &  & G_{21,\tilde{k}} &  & \\
+ &  &  & G_{21,\tilde{k} + l \bar{k}} & \\
+ &  &  &  & \ddots
+ \end{bmatrix} 
+ \begin{bmatrix} \vdots \\ \hat{u}(s, \tilde{k} - \bar{k}) \\
+ \hat{u}(s, \tilde{k}) \\
+ \hat{u}(s, \tilde{k} + \bar{k}) \\
+  \vdots \end{bmatrix}
+ + \nonumber \\
+& \begin{bmatrix}
+ \ddots &               &  &  & \\
+ & G_{22,\tilde{k} - l \bar{k}} &  &  & \\
+ &  & G_{22,\tilde{k}} &  & \\
+ &  &  & G_{22,\tilde{k} + l \bar{k}} & \\
+ &  &  &  & \ddots
+ \end{bmatrix}
+\begin{bmatrix} \vdots \\ \hat{v}(s, \tilde{k} - \bar{k}) \\
+ \hat{v}(s, \tilde{k}) \\
+ \hat{v}(s, \tilde{k} + \bar{k}) \\
+ \vdots \end{bmatrix} \text{ , or} \label{eq:general-pde-operator-lifted} \\
+ \hat{R}(s, \tilde{k}) & = \hat{G}_{21,\tilde{k}}(s) \hat{U}(s, \tilde{k}) + \hat{G}_{22,\tilde{k}}(s) \hat{V}(s, \tilde{k})
+\end{align}
+
+In the space of the lifted signals and systems, the dynamics are LTI and decoupled in \(\tilde{k} \), and we can solve for the output \(\hat{Y}(s, \tilde{k})\). Suppressing the dependence of the lifted quantities on \(s \) and \(k \), 
+\begin{align}
+\label{eq:formal-solution-lifted}
+\hat{R} & = \hat{G}_{21} \hat{U} + \hat{G}_{22} \hat{V} \\
+\hat{V} & = \hat{P} \hat{R} = \hat{P} \hat{G}_{21} \hat{U} + \hat{P} \hat{G}_{22} \hat{V} \\
+\implies (I - \hat{P} \hat{G}_{22}) \hat{V} & = \hat{P} \hat{G}_{21} \hat{U}\\
+ \hat{Y} & = \hat{G}_{11} \hat{U} + \hat{G}_{12} \hat{V} \\
+ & = \left[ \hat{G}_{11} +  (I - \hat{P} \hat{G}_{22})^{-1} \hat{P} \hat{G}_{21} \right] \hat{U} =: \hat{H} \hat{U}
+\end{align}
+
+Here all the \(\hat{G}_{\tilde{k}} \) matrices are diagonal, \(\hat{P} \) is Toeplitz and independent of \(\tilde{k} \), and the product \(I - \hat{P} \hat{G} \) has a special structure that will be investigated in a later section. However the matrix \(\hat{H}_k \) does not in general possess any special structure.
+
+* Analyzing stability using the root locus method \( \hat{P}, \hat{G} \)
+The stability of the system depends on the stability of the \(\left( I - \hat{P} \hat{G} \right)^{-1} \) operator, which is equivalent to the stability of the transfer function matrix \(\left( I - \hat{P} \hat{G}_{\tilde{k}}(s) \right)^{-1} \) for all \(\tilde{k} \).
+
+This is equivalent to the following (for all \(\tilde{k} \)):
+- \((I - \hat{P} \hat{G}_{\tilde{k}}(s)) \) is non-singular everywhere in the right half plane, and
+- \(\hat{P} \) and \(\hat{G}_{\tilde{k}} \) have no common unstable poles or zeros
+
+These two conditions are investigated further in the following sections.
+
+** Finding the determinant of \(I - \hat{P} \hat{G}_{\tilde{k}} \)
+The first condition can be examined by finding the zeros of the determinant of \(I - \hat{P} \hat{G}_{\tilde{k}}(s) \). Note that \(\det \left( I - \hat{P} \hat{G}_{\tilde{k}}(s) \right) = 0\) with \(s \) in the right half-plane corresponds to an RHP pole of \( \left( I - \hat{P} \hat{G}_{\tilde{k}}(s) \right)^{-1} \).
+
+Let \(G_l(s) = G_{\tilde{k} + l \bar{k}}(s) \), with the dependence on \(\tilde{k} \) suppressed for the moment. Then the operators \(\hat{P} \) and \(\hat{G}_{\tilde{k}} \) are 
+\begin{align*}
+\hat{P} = \begin{bmatrix}
+\ddots & \ddots & \ddots &    &    & & \\
+\dots & P_1 & P_0 & P_{-1} & \dots &      & \\
+ & \dots & P_1 & \fbox{P_0}   & P_{-1} & \dots  & \\
+ &    & \dots & P_1   & P_0   & P_{-1} & \dots\\
+ &    &    &      & \ddots    &  \ddots & \ddots
+\end{bmatrix},\quad \hat{G}_{\tilde{k}} = \begin{bmatrix}
+ \ddots & &  &  & \\
+ & G_{-1}(s) &  &  & \\
+ &  & \fbox{G_0(s)} &  & \\
+ &  &  & G_1(s) & \\
+ &  &  &  & \ddots
+ \end{bmatrix}
+\end{align*}
+and their product scales the \(l^{\text{th}} \) column of \(\hat{P} \) by \(G_l(s) \):
+\begin{align}
+\label{eq:I-PG-general-form}
+I - \hat{P} \hat{G}_{\tilde{k}} = I - \begin{bmatrix}
+\ddots & \ddots & \ddots &    &    & & \\
+\dots & G_{-2}P_1 & G_{-1}P_0 & G_0 P_{-1} & \dots &      & \\
+  & \dots & G_{-1} P_1 & \fbox{\(G_0 P_0\)}   & G_1 P_{-1} & \dots  & \\
+  &    & \dots & G_0 P_1   & G_1 P_0   & G_2 P_{-1} & \dots\\
+  &    &    &      & \ddots    &  \ddots & \ddots
+\end{bmatrix}
+\end{align}
+
+There is no general form for this determinant, but we can derive a recursive relation when \(\hat{P} \) is tridiagonal, for instance when \(p(x) = a \cos(x) \). Then
+\begin{equation}
+p(x) = a \cos(x) \Leftrightarrow \hat{P} = \frac{a}{2}
+\begin{bmatrix} 
+\ddots & \ddots & \ddots &     & \\
+  & 1  & 0  &  1  & \\
+  &    & \ddots &  \ddots & \ddots
+\end{bmatrix} \label{eq:p-hat-with-cosine}
+\end{equation}
+and
+\begin{equation}
+\label{eq:det-calculation-1}
+I - \hat{P} \hat{G}_{\tilde{k}} = \begin{bmatrix}
+\ddots & \ddots & \ddots &    &    & & \\
+\dots & - \frac{a}{2} G_{-2} & 1 & -\frac{a}{2} G_0  & \dots &      & \\
+  & \dots & - \frac{a}{2} G_{-1}  & \fbox{\(1\)}   & - \frac{a}{2} G_1 & \dots  & \\
+  &    & \dots & - \frac{a}{2} G_0   & 1  & - \frac{a}{2} G_2 & \dots\\
+  &    &    &      & \ddots    &  \ddots & \ddots
+\end{bmatrix}
+\end{equation}
+Finite truncations of this matrix can be factored as follows:
+
+\begin{equation*}
+\begin{bmatrix}
+1  & g_1 &  & \\
+g_0 & 1 & \ddots & \\
+   &  \ddots & \ddots & g_n \\
+   &  & g_{n-1} & 1
+\end{bmatrix} = \begin{bmatrix}
+1 &  &  & \\
+l_0 & \ddots & & \\
+ &  \ddots & \ddots &  \\
+ &  & l_{n-1} & 1
+\end{bmatrix} \begin{bmatrix}
+u_0 & g_1 &  & \\
+ & \ddots & \ddots & \\
+ &  & \ddots & g_n \\
+ &  &   & u_n
+\end{bmatrix}
+\end{equation*}
+\begin{align*}
+l_k & = g_{k-1} / u_{k-1} \\
+1 & = l_{k-1} g_k + u_k  \implies u_k = 1 - \frac{g_k g_{k-1}}{u_{k-1}},\ u_0 = 1
+\end{align*}
+The recursion relation for \(u_k \) gives us one for the determinant \(\pi_k = \prod_{l=0}^k u_l\):
+\begin{align*}
+\pi_0 & = u_0 = 1 \\
+\pi_1 & = u_1 = 1 - g_0 g_1 \\
+\pi_{l} & = u_l \pi_{l-1} = \left( 1 -  \frac{g_l g_{l-1}}{u_{l-1}} \right) \pi_{l-1} = \left( 1 - \frac{g_l g_{l-1} \pi_{l-2}}{\pi_{l-1}} \right) \pi_{l-1} \\
+& = \pi_{l-1} - g_l g_{l-1} \pi_{l-2}
+\end{align*}
+Applying this to symmetric truncations of equation \ref{eq:det-calculation-1},
+\begin{equation}
+\label{eq:det-truncation-1}
+H_n := \begin{bmatrix}
+1                   &  -\frac{a}{2} G_{-n + 1} &  &  \\
+- \frac{a}{2} G_{-n} & \ddots & \ddots &  \\
+                    & \ddots & \ddots & - \frac{a}{2} G_{n} \\
+                    & & -\frac{a}{2} G_{n-1} &
+\end{bmatrix}
+\end{equation}
+\begin{align}
+\pi_{-n} & = 1 \\
+\pi_{-n + 1} & = 1 - \frac{a^2}{4} \left( G_{-n + 1} G_{-n} \right) \\
+\pi_l & = \pi_{l-1} - \frac{a^2}{4} \left( G_l G_{l-1} \right) \pi_{l-2} \implies \\
+\pi_n & = 1 - \frac{a^2}{4} \sum_{l=-n}^{n-1} G_{l}G_{l+1} + \mathcal{O}(a^{4})
+\end{align}
+And in the limit \(n \to \infty \), the determinant of the matrix \ref{eq:det-calculation-1} approaches
+\begin{align}
+\label{eq:det-calculation-inf}
+\det(I - \hat{P} \hat{G}_{\tilde{k}}) & = 1 - \frac{a^2}{4} \sum_{l \in \mathbb{Z}}^{} G_l(s) G_{l+1}(s) + \mathcal{O}(a^{4}) \\
+& = 1 - \frac{a^2}{4} \sum_{l \in \mathbb{Z}}^{} G_{\tilde{k} + l \bar{k}}(s) G_{\tilde{k} + (l+1) \bar{k}}(s) + \mathcal{O}(a^{4}) \\
+& = 1 - \frac{a^2}{4} H_{\tilde{k}}(s) + \mathcal{O}(a^{4})
+\end{align}
+The poles of \(H_{\tilde{k}} \) are the poles of \(G_{k} \) repeated an infinite number of times with values of \(k \) separated by integer multiples of \( \bar{k} \). The zeros of \(H_{\tilde{k}} \) are harder to locate.
+
+Additionally, \(H_{\tilde{k}}(s) \) is periodic in \(\tilde{k} \), since
+\begin{align}
+H_{\tilde{k} + \bar{k}}(s) & = \sum_{l \in \mathbb{Z}}^{} G_{\tilde{k} + \bar{k} + l \bar{k}}(s) G_{\tilde{k} + \bar{k} + (l + 1) \bar{k}}(s) \\
+& = \sum_{m \in \mathbb{Z}}^{} G_{\tilde{k} + m \bar{k}}(s) G_{\tilde{k} + (m+1) \bar{k}}(s) = H_{\tilde{k}}(s) \quad (m := l + 1)
+\end{align}
+
+The recursion formula shows that the expression for the determinant involves higher powers of \(a^2 \), and standard root locus techniques will not be applicable. 
+
+** Common unstable poles or zeros \( \hat{P}, \hat{G} \)
+
+\(\hat{P} \) is a constant matrix and thus does not have any zeros. Possible pole-zero cancellations are thus limited to the poles of \(\hat{P} \) and the zeros of \(\hat{G}_{\tilde{k}} \). 
+
+Since \(\hat{G}_{\tilde{k}} \) is diagonal, its zeros are that of its entries \(G_{\tilde{k} + l \bar{k}} \). To find the poles of \(\hat{P} \), we can consider its spectrum as a multiplication operator with symbol \(p(x) \):
+\begin{equation*}
+v(x) = p(x) r(x) \implies \lambda(P) = \overline{\left\{ p(x);\ x \in \mathbb{R} \right\}}
+\end{equation*}
+
+* Wave equation
+Consider the wave equation with a spatially periodic wave speed and source:
+\begin{equation}
+\label{eq:wave-eqn-spatial-x}
+\partial_{t t} \psi(t,x) = (c_0^2 + p(x)) \partial_{x x} \psi(t,x) + f(t, x)
+\end{equation}
+We will rewrite this as a spatially invariant system in feedback with a spatially periodic gain, then apply the lifting method.
+\begin{align*}
+\partial_{t t} \psi(t, x) & = c_0^2 \partial_{x x} \psi(t, x) + \underbrace{p(x) \partial_{x x} \psi(t,x)}_v + f(t,x) \\
+\partial_{t t} \psi(t, x) & = c_0^2 \partial_{x x} \psi(t, x) + v(t, x) + f(t, x)
+\end{align*}
+
+#+begin_export latex
+\begin{figure}
+    \centering
+    \def\svgwidth{0.5\columnwidth}
+    \import{figures}{wave-eqn-block-diagram.pdf_tex}
+    \label{fig:wave-eqn-block-diagram}
+    \caption{}
+\end{figure}
+#+end_export
+
+\begin{align*}
+u &= G_1 f + G_2 v \\
+v &= p(x) \partial_{x x} u
+\end{align*}
+
+The upper block is a spatially invariant system, so the Fourier transform converts it to a multiplication operator. The lower block is a "Toeplitz operator":
+\begin{align*}
+\partial_{t t} \psi(t, x) & = c_0^2 \partial_{x x} \psi(t, x) + f(t, x) & \Longleftrightarrow \partial_{t t} \hat{\psi}(t, \kappa) & = - \kappa^2 c_0^2 \hat{\psi}(t, \kappa) + f(t, \kappa)\\
+v(t, x) & = p(x) \partial_{x x} \psi(t, x) = \sum_{l \in \mathbb{Z}}^{} \hat{P}_l e^{j l \bar{\kappa} x} \partial_{x x} \psi(t, x) & \Longleftrightarrow \hat{v}(t, \kappa) & = - \sum_{l \in \mathbb{Z}}^{} \hat{P}_l \left( \kappa - \bar{\kappa} l \right)^2 \hat{\psi}(t, \kappa - \bar{\kappa} l)
+\end{align*}
+
+We define the lifting of \(\hat{\psi}(t,\kappa) \) as follows:
+\begin{align*}
+\hat{\psi}(t, \kappa) &= \left( \begin{smallmatrix} \dots & \hat{\psi}(t, \kappa - \bar{\kappa}) & \hat{\psi}(t, \kappa) & \hat{\psi}(t, \kappa + \bar{\kappa}) &  \dots \end{smallmatrix} \right)^T
+\end{align*}
+and similarly for \(\hat{v} \)
+Then we can define the corresponding operators
+\begin{align*}
+\hat{G} & = \begin{bmatrix}
+& \ddots  &  & &  & \\
+&  & G(\kappa - \bar{\kappa})  & & & \\
+& &  & G(\kappa) & & \\
+&  &  &  & G(\kappa + \bar{\kappa}) & \\
+& &  &  & & \ddots
+\end{bmatrix} \\
+\hat{P} & = \begin{bmatrix}
+\ddots & \ddots & \ddots & &  \\
+ & P_{1} & P_{0} & P_{-1} & \\
+& & \ddots & \ddots & \ddots 
+\end{bmatrix} \begin{bmatrix}
+& \ddots &  &  & & \\
+& & -(\kappa - \bar{\kappa})^2 &  & & \\
+& & & - (\kappa)^2 & & \\
+& & & & - (\kappa + \bar{\kappa})^2 & \\
+& & & & & \ddots
+ \end{bmatrix}
+\end{align*}
+Finally, in the Laplace domain we have
+\begin{align}
+\label{eq:lifting-3}
+\hat{\psi}(s, \kappa) &= \left( \begin{smallmatrix} \dots & \hat{\psi}(s, \kappa - \bar{\kappa}) & \hat{\psi}(s, \kappa) & \hat{\psi}(s, \kappa + \bar{\kappa}) &  \dots \end{smallmatrix} \right)^T \\
+G(s,\kappa) &= \frac{1}{s^2 + \kappa^2 c_0^2}
+\end{align}
+and the LTI system
+\begin{align}
+\label{eq:lifting-4}
+\hat{\psi}(s, \kappa) = \hat{G}_1(s, \kappa) \hat{F}(s, \kappa) + \hat{G}_2(s,\kappa) \hat{V}(s, \kappa)
+\end{align}
+
+#+BEGIN_SRC julia :tangle "./wave_equation/wave_equation_root_locus.jl" :mkdirp yes
+  include("HPoly.jl")
+  using Main.HPoly
+#+END_SRC
+
+#+BEGIN_SRC julia :tangle "./wave_equation/wave_equation_root_locus.jl" :mkdirp yes
+  using LinearAlgebra
+  using ControlSystems
+  using Plots
+  using OrdinaryDiffEq
+  using Polynomials
+
+  s = tf("s")
+
+  nmax = 2
+
+  # Wave equation with variable wave speed
+  G_wave(l::Integer, s::TransferFunction, θ; c=1.0, Ω=0.233) = (θ + l*Ω)^2/(s^2 + c^2*(θ + l*Ω)^2)
+
+  function H(G, nmax::Integer, s::TransferFunction, θ; kwdef...)
+      g(k) = G(k,s,θ;kwdef...)
+      sum(g(n)*g(n+1) for n in -nmax:1:nmax-1)
+  end
+
+  function wave_eq_poles_and_zeros_all(Ω::Float64; n=2, kwdef...)
+      plt = plot()
+      s = tf("s")
+      g(θ, Ω) = H(G_wave, n, s, θ; Ω=Ω, c=1.0)
+      for θ in range(0,Ω, length=40)
+          z, p, _ = minreal(g(θ,Ω),1e-3) |> zpkdata
+          # poles_and_zeros_plot!(plt, imag(z), imag(p), yoffset = θ,size=(1600,900))
+          plot!(plt, (θ/Ω)*ones(length(z[1])), imag(z[1]);
+                seriestype=:scatter,
+                markershape=:circle,
+                markersize=4,
+                color=:blue, label=false, kwdef...)
+          plot!(plt, (θ/Ω)*ones(length(p[1])), imag(p[1]);
+                seriestype=:scatter,
+                markershape=:xcross,
+                markersize=4,
+                color=:red, label=false, kwdef...)
+      end
+      plot!(plt,ylabel="-j * root location", xlabel="θ", framestyle=:origin, size=(1600,900),
+            ylims=(-12,12))
+      plt
+  end
+#+END_SRC
+
+#+RESULTS:
+: wave_eq_poles_and_zeros_all (generic function with 1 method)
+
+#+BEGIN_SRC julia
+   mov = @animate for Ω in 0:0.2:8.0
+        wave_eq_poles_and_zeros_all(Ω, n=3)
+    end
+
+  gif(mov, "./wave_equation/animation_n3.gif", fps=10)
+#+END_SRC
+
+#+RESULTS:
+: Plots.AnimatedGif("/home/karthik/Documents/research/driven_oscillators/periodic_pdes/wave_equation/animation_n3.gif")
+
+#+BEGIN_SRC julia :tangle "./wave_equation/wave_equation_root_locus.jl" :results none
+function compare_zeros_and_poles(;Ω=2.0,n=2)
+    θ=Ω
+    z, p, _ = zpkdata(H(G_wave, n, s, θ, c=1.0, Ω=Ω))
+    hcat(vcat(zeros(length(p[1]) - length(z[1])), round.(imag(z[1]), digits=3)),
+         round.(imag(p[1]), digits=3))
+end
+#+END_SRC
+
+#+BEGIN_SRC julia :tangle "./wave_equation/wave_equation_root_locus.jl"
+  compare_zeros_and_poles(n=4)
+#+END_SRC
+
+#+RESULTS:
+|    0.0 |   10.0 |
+|    0.0 |  -10.0 |
+|    0.0 |    8.0 |
+|    0.0 |   -8.0 |
+|  7.084 |    6.0 |
+| -7.084 |   -6.0 |
+|  5.416 |  4.001 |
+| -5.416 | -4.001 |
+|  2.454 |    2.0 |
+| -2.454 |   -2.0 |
+
+** Eigenvalues of the periodic wave equation operator
+
+In Fourier space, the wave equation corresponds to the family of ODEs
+\begin{align*}
+\partial_{t t} \psi(t, k) & = - k^2 c_0^2 \psi(t, k) - \sum\limits_n p_n (k-n \Omega)^2 \psi(t, k - n \Omega) + f(t,k)
+\end{align*}
+corresponding to the linear PDE operator
+\begin{align*}
+\mathcal{A}(k) = - k^2 c_0^2 - \sum\limits_n p_n (k - n \Omega)^2 \mathcal{S}_{n \Omega}
+\end{align*}
+Where \(\mathcal{S}_{\cdot} \) is the left-shift operator. Discretizing the frequency \(k \) with step \(\delta \) so that \(N \delta = \Omega \), \(\mathcal{A} \) has a matrix representation
+\begin{align*}
+\resizebox{0.8\hsize}{!}{$%
+A \hat{\psi} = \begin{bmatrix}
+  \ddots &     &                     &        &                  &                       &        &        &        \\
+         &     &                     &                  & \ddots           &                       &        &        &        \\
+         &     & - (c_0^2 + p_0)(-2\delta)^2 &                  &        & (-2\delta + N\delta)^2 p_{-1}                   &        &        &        \\
+  \ddots &     &                     & - (c_0^2 + p_0) \delta^2 &        &                  & (-\delta + N\delta)^2 p_{-1}    &        &        \\
+         & \framebox{\((-N\delta)^2 p_1\)} & \dots               & \dots            &      \framebox{0} & \dots            & \dots       & \framebox{\((N\delta)^2 p_{-1}\)} &        \\
+         &     & (\delta - N\delta)^2 p_{1}                 &                  &        & - (c_0^2 + p_0) \delta^2 &                       &        & \ddots \\
+         &     &                     & (2\delta - N\delta)^2 p_{1}           &        &                  & - (c_0^2 + p_0) (2 \delta)^2 &        &        \\
+         &     &                     &                  & \ddots &                  &                       & \ddots &        \\
+         &     &                     &                  &        &                  &                       &        & \ddots
+       \end{bmatrix} \begin{pmatrix} \vdots \\ \framebox{\psi_{-N\delta}} \\ \vdots \\ \psi_{-2\delta}\\ \psi_{-\delta}\\ \framebox{\psi_{0\delta}}\\ \psi_{\delta} \\ \psi_{2\delta} \\ \vdots \\ \framebox{\psi_{N\delta}} \\ \vdots \end{pmatrix}}
+\end{align*}
+
+When \(p(x) = \epsilon \cos(\Omega x)\), \(p_{-1} = p_1 = \epsilon/2\) and \(p_n = 0 \) otherwise. Then only one super and subdiagonal of \(A \) is nonzero.
+
+#+BEGIN_SRC julia :tangle "./wave_equation/wave_equation_eigenvalues.jl" :exports code :results silent :mkdirp yes
+  using LinearAlgebra
+  using SparseArrays
+  using Plots
+
+  function wave_eq_operator(ϵ::Real, Ω::Real)
+      # ϵ = 0.01                        # Parametric forcing amplitude
+      # Ω = 0.40                        # Parametric forcing wavenumber 
+      p₊ = ϵ/2
+      p₋ = ϵ/2                        # Fourier series coefficients for ϵ cos(Ω x)
+
+      N = 16                          # number of grid points in [0, Ω]
+      c₀ = 1.0                        # Wave speed
+      δ = Ω/N                         # Grid spacing in frequency
+      nterms = 2*N                    # Truncation of PDE operator is 2*nterms+1 square in size
+
+      diagonal    = [ -(c₀^2 + 0) * (k*δ)^2 for k in -nterms:nterms ];
+      supdiagonal = [ -(k*δ + Ω)^2 * p₋     for k in -nterms:nterms ];
+      subdiagonal = [ -(k*δ - Ω)^2 * p₊     for k in -nterms:nterms ];
+
+      Aoperator = diagm(0 => diagonal,
+                        -N => subdiagonal[1+N:end],
+                        N => supdiagonal[1:end-N]);
+  end
+#+END_SRC
+
+#+BEGIN_SRC julia :tangle "./wave_equation/wave_equation_eigenvalues.jl" :exports code :results replace :mkdirp yes
+  ϵ_all = range(0.0, 2.5, length=150)
+  Ω_all = range(0.0, 1000, length=150)
+  max_eigs = zeros(length(ϵ_all), length(Ω_all))
+  for (i,ϵ) in enumerate(ϵ_all)
+      for (j,Ω) in enumerate(Ω_all)
+          max_eigs[i,j] = maximum(identity, 
+                                  wave_eq_operator(ϵ, Ω) |> eigvals .|> real)
+      end
+  end
+
+  # contour(Ω_all, ϵ_all, max_eigs, levels=range(0,2.0,length=20), size=(1600,900), label=false)
+  size(max_eigs)
+#+END_SRC
+
+#+RESULTS:
+| 150 | 150 |
+
+#+BEGIN_SRC julia :tangle "./wave_equation/wave_equation_eigenvalues.jl" :exports both :results replace :mkdirp yes
+  contour(Ω_all,ϵ_all,max_eigs,label=false, levels=exp.(-4:0.8:10), size=(1600,900),
+          xlabel="Ω", ylabel="ϵ", title="Largest eigenvalue of the periodic wave equation")
+#+END_SRC
+
+#+RESULTS:
+: Plot{Plots.GRBackend() n=1}
+
+* Swift-Hohenberg equation \( \psi_t = \mathcal{A}^2 \psi \)
+The linearization of the Swift-Hohenberg equation around its time-independent spatially periodic solution leads to a PDE with spatially periodic coefficients of the form
+\begin{align}
+\partial_t \psi & = - \left( \partial_x^2 + \chi^2 \right)^2 \psi + f \psi + u \nonumber\\
+y & = \psi \label{eq:swift-hohenberg-orig}
+\end{align}
+with \(0 \ne \chi \in \mathbb{R}\), \( c > 0 \) and \(f(x) = f(x + L) \). We assume here that \(f(x) = \epsilon \cos \left( \frac{2 \pi}{L} x \right) =: \epsilon \cos(\Omega x) \), with \(\epsilon \in \mathbb{R} \) small.
+
+Writing this in the form of equation \ref{eq:general-pde-2}, we get
+\begin{equation}
+\begin{array}{ll}
+\mathcal{A}_0 = - \left( \partial_x^2 + \chi^2 \right)^2 & \mathcal{B} = I\\
+\mathcal{A}_1 = I\\
+p(x) = f(x) & \bar{k} = \frac{2 \pi}{L} = \Omega
+\end{array}\label{eq:swift-1}
+\end{equation}
+so that in the spatial Fourier domain,
+\begin{equation}
+\label{eq:swift-2}
+\begin{array}{ll}
+A_0(k) = -(\chi^2 - k^2)^2  & B(k) = I \\
+A_1(k) = I \\
+P_l = \begin{cases}
+  \epsilon/2 & l = \pm1 \\
+  0 & \text{otherwise}
+\end{cases}
+\end{array}
+\end{equation}
+Since we are concerned with the stabilty of the operator \(\left( I - \hat{P} \hat{G}_{22,k}(s) \right)^{-1}\), we find the transfer function \(G_{22,k}(s)\) from its realization
+\begin{equation}
+\begin{array}{ll}
+G_{22,k}:  \begin{array}{c:c}
+  A_0(k) & B(k) \\
+  \hdashline
+A_1(k) & 0
+\end{array} & 
+\implies G_{22,k}(s) = \frac{1}{s + \left( \chi^2 - k^2 \right)^2}
+\end{array}
+\end{equation}
+So that the lifted transfer transfer operator \(\hat{G}_{22,\theta}\) is given by
+\begin{equation}
+\label{eq:swift-3}
+\hat{G}_{22,\theta} = \begin{bmatrix}
+\ddots &       & & & \\
+  & \frac{1}{s + \left( \chi^2 - (\theta - \Omega)^2 \right)^2} & & & \\
+  & & \frac{1}{s + \left( \chi^2 - \theta^2 \right)^2} &  & \\
+  & & & \frac{1}{s + \left( \chi^2 - (\theta + \Omega)^2 \right)^2} & \\
+  & & & & \ddots 
+ \end{bmatrix}
+\end{equation}
+And \(\hat{P} \) is (from equation \ref{eq:p-hat-with-cosine})
+\begin{equation} 
+\label{eq:swift-3}
+\hat{P} = \frac{\epsilon}{2} \begin{bmatrix} 
+\ddots & \ddots & \ddots &     & \\
+  & 1  & 0  &  1  & \\
+  &    & \ddots &  \ddots & \ddots
+\end{bmatrix}
+\end{equation}
+From the expression for the determinant of \(\left( I - \hat{P} \hat{G}_{\tilde{k}} \right) \) (equation \ref{eq:det-calculation-inf}),
+\begin{equation}
+\label{eq:swift-4}
+\det(I - \hat{P} \hat{G}_{\tilde{k}}) = 1 - \frac{\epsilon^2}{4} H_{\tilde{k}}(s) + \mathcal{O}(\epsilon^{4})
+\end{equation}
+where the poles of \(H_{\theta}(s) \) are the poles of \(\hat{G}_{22,\theta} \) and whose zeros are yet to be determined. For small \(\epsilon \), we can analyze this with the root locus method. \(\left( 1 - \frac{\epsilon^2}{4} H_{\theta}(s) \right)^{-1} \) is the transfer function of a system \(H_{\theta}(s) \) with a feedback gain of \(\epsilon^2/4 \), and the poles of this system for varying \(\epsilon \) are given by its root locus.
+# % #+begin_export latex
+# % \begin{figure}[htb]
+# %    \centering
+# %    \def\svgwidth{0.6\columnwidth}
+# %    \import{figures}{root-locus-setup.pdf_tex}
+# %    \label{fig:root-locus-setup}
+# %    \caption{}
+# %\end{figure}
+# %#+end_export
+Specifically, we can look at the locations of the poles of the closed loop system for \(\epsilon \to 0^{+} \). This corresponds to the poles of the system \(H_{\theta}(s) \), which are at \( s = - (\chi^2 - (\theta + l \Omega)^2)^2\), \(\theta \in [0, \Omega],\ l \in \mathbb{Z} \). 
+
+The denominator of \(H_{\theta}(s) \) is a product of factors of the form
+\[
+s + \left( \chi^2 - (\theta + l \Omega)^2 \right)^2,\quad n \in \mathbb{Z}, \theta \in [0, 2 \pi), \Omega \in \mathbb{R}^{+}.
+\]
+Clearly \(H \) has no poles in the RHP, and thus it is never exponentially unstable. However, the system can still go unstable where \(H_{\theta}(s) \) has a double (or higher) pole at the origin without overlapping zeros. We analyze the double poles and zeros of \(H \) next.
+
+** Poles and zeros of \(H(s) \)
+
+# The system is unstable whenever two of these poles (for different values of \(l \)) coincide
+
+Let \(H_{n,\theta}(s) \) be the truncation of \(H_{\theta}(s) \) to the central \(2 n + 1 \) terms:
+\begin{align*}
+f_l(s; \theta, \chi, \Omega) & := {s + (\chi^2 - (\theta + l \Omega)^2)^2}\\
+H_{n,\theta}(s) & := \sum\limits_{l=-n}^n \frac{1}{f_l(s; \theta, \chi, \Omega) f_{l+1}(s; \theta, \chi, \Omega)}
+\end{align*}
+Then
+\begin{align*}
+H_{n,\theta}(s) & = \sum_{l=-n}^{n-1} \frac{1}{f_l(s; \theta, \chi, \Omega) f_{l+1}(s; \theta, \chi, \Omega)} \\
+& = \frac{\sum\limits_{l=-n}^{n-1} {\prod\limits_{\substack{m = -n\\m \ne l, l+1}}^{n} f_m(s; \theta, \chi, \Omega)}}{\prod\limits_{l=-n}^{n} f_l(s; \theta, \chi, \Omega)}.
+\end{align*}
+
+We predict instability for \(\epsilon \to 0^{+} \) when one of these poles approaches \(0 \). This implies
+ \begin{align*}
+ & \left( \theta + l \Omega \right)^2 = \chi^2\\
+ & \theta + l \Omega = \pm \chi \\
+ & l \Omega = \pm \chi - \theta \\
+ & \Omega = \frac{\pm \chi - \theta}{l},\ l \in \mathbb{Z} - \left\{ 0 \right\} \\
+ & \Omega = \frac{\theta \pm \chi}{l},\ l \in \mathbb{Z} - \left\{ 0 \right\}
+ \end{align*}
+
+*** Pole locations
+All the poles are on the negative real axis or at the origin. \(H_{n,\theta}(s) \) has double poles whenever
+\[
+  (s + (\chi^2 - (\theta + m \Omega)^2)^2) = (s + (\chi^2 - (\theta + n \Omega)^2)^2) = 0 \quad m,n \in \mathbb{Z}, m \ne n, \theta \in [0, \Omega)
+\]
+This implies
+\begin{align*}
+(\chi^2 - (\theta + m \Omega)^2) & = \pm (\chi^2 - (\theta + n \Omega)^2) \\
+(\theta + m \Omega) = \pm (\theta + n \Omega) &  \text{ or } (\theta + m \Omega)^2 + (\theta + n \Omega)^2 = 2 \chi^2 \\
+m + n = -\frac{2 \theta}{\Omega} & \text{ or }  2 \theta^2 + 2 (m + n) \theta \Omega + (m^2 + n^2) \Omega^2 = 2 \chi^2
+\end{align*}
+
+**** Case \(m + n = - 2 \theta/\Omega \)
+Since \(\theta \in [0, \Omega) \), \(m + n = - 2 \theta/\Omega \) requires that \(\theta = 0 \) or \(\theta = 0.5 \Omega \). So
+\begin{align*}
+m + n =
+\begin{cases}
+  0 & \theta = 0 \\
+  -1 & \theta = \Omega/2
+\end{cases}
+\end{align*}
+respectively.
+
+#+attr_latex: :options {}{double-pole-of-H}
+#+begin_lemma
+\(H_{n,\theta}(s) = \sum\limits_{l=-n}^{n-1} \frac{1}{(s + (\chi^2 - (\theta + l \Omega)^2)^2) (s + (\chi^2 - (\theta + (l+1) \Omega)^2)^2)} \) has a double pole at  \(\bar{s} \) iff \(\exists l,k \) s.t. \( -n \le l, k \le n \) and
+1. \(\bar{s} = - (\chi^2 - (\theta + l \Omega)^2)^2 \)
+2. \( \theta = 0, k = -l \) or \(\theta = \Omega/2, k+l = -1 \)
+#+end_lemma
+
+**** TODO Case \((\theta + m \Omega)^2 + (\theta + n \Omega)^2 = 2 \chi^2 \)
+
+The other possibility gives
+\[
+\frac{\theta}{\Omega} = - \frac{m + n}{2} \pm \sqrt{\frac{\chi^2}{\Omega^2} - \frac{(m - n)^2}{4}}
+\]
+Since \(\theta \in [0, \Omega) \), 
+- we require that the discriminant be positive, /i.e./ \(\|m - n\| < 2 \chi/\Omega \).
+
+*** Zero locations 
+Every coefficient of the zero polynomial is positive. From Descartes' rule of signs, it follows that there are no positive real zeros.
+
+Let the zero polynomial be \(N_{n,\theta}(s) \):
+\begin{align*}
+N_{n,\theta}(s) & := \sum\limits_{l=-n}^n \prod\limits_{\substack{m=-n\\m \ne l, l+1}}^n f_m(s; \theta, \chi, \Omega) \\
+& = \sum\limits_{l=-n}^n \prod\limits_{\substack{m=-n\\m \ne l, l+1}}^n (s + (\chi^2 - (\theta + m \Omega)^2)^2)
+\end{align*}
+Note that each term in the sum includes all but two consecutive factors. If any two of these factors are zero at \(\bar{s} \), then it follows that \(N_{n,\theta}(\bar{s}) = 0 \) whenever at least one of these factors appears in each term in the sum. This is the case whenever the two zero factors are non-consecutive. Thus, a double pole of \(H_{n,\theta} \) at \(\bar{s} \) can also be a zero of \(H_{n,\theta} \). We show this explicitly for our system below.
+
+Suppose one of the factors \(f_l(\bar{s};\theta,\chi,\Omega) = 0 \) at \( \bar{s} \). Then only two of the \(2 n - 1 \) terms in the sum that forms \(N_{n,\theta} \) are nonzero:
+\begin{align*}
+N_{n,\theta}(\bar{s}) & = \prod\limits_{\substack{m=-n\\m \ne l-1, l}}^{n} (\bar{s} + (\chi^2 - (\theta + m \Omega)^2)^2) + \prod\limits_{\substack{m=-n\\m \ne l, l+1}}^{n} (\bar{s} + (\chi^2 - (\theta + m \Omega)^2)^2) \\
+& = \left[ (\bar{s} + (\chi^2 - (\theta + (l-1) \Omega)^2)^2) + (\bar{s} + (\chi^2 - (\theta + (l+1) \Omega)^2)^2) \right] \prod\limits_{\substack{m=-n\\m \ne l-1, l, l+1}}^n (\bar{s} + (\chi^2 - (\theta + m \Omega)^2)^2) \\
+& = \left[ \bar{s} + \frac{ (\chi^2 - (\theta + (l-1)\Omega)^2)^2 + (\chi^2 - (\theta + (l+1)\Omega)^2)^2 }{2} \right]  \prod\limits_{\substack{m=-n\\m \ne l-1, l, l+1}}^n (\bar{s} + (\chi^2 - (\theta + m \Omega)^2)^2)
+\end{align*}
+If, in addition, a second factor \(f_k(\bar{s}; \theta, \chi, \Omega) = 0\) for some \(k \ne l\), then we see from the above that \(N_{n,\theta}(\bar{s}) = 0 \) if \(k \ne l, l-1 \text{ or } l+1 \):
+\begin{align*}
+N_{n,\theta}(\bar{s}) \begin{cases}
+  = 0 & \abs{l - k} \ge 2 \\
+  \ne 0 & \abs{l - k} < 2 
+\end{cases}
+\end{align*}
+leading to:
+#+attr_latex: :options {}{zero-of-H}
+#+begin_theorem
+Suppose the transfer function \(H_{n,\theta}(s) := \sum\limits_{l=-n}^{n-1} \frac{1}{f_l(s) f_{l+1}(s)} \) has a double pole at \( \bar{s} \), such that \(f_l(\bar{s}) = f_k(\bar{s}) = 0 \), with \(l \ne k \). It has a zero at \( \bar{s} \) iff \(\abs{l - k} \ge 2 \).
+#+end_theorem
+
+Combining the results of Lemma \ref{thm:double-pole-of-H} and Theorem \ref{thm:zero-of-H}, we get:
+#+attr_latex: :options {}{pole-zero-cancellation-for-H}
+#+begin_lemma
+\(H_{n,\theta}(s) = \sum\limits_{-n}^{n-1} \frac{1}{(s + (\chi^2 - (\theta + l \Omega)^2)^2) (s + (\chi^2 - (\theta + (l+1) \Omega)^2)^2)} \) has the following propreties:
+1. A double pole at \(\bar{s} \) when \(\exists -n \le l,k \le n \) s.t. \(l \ne k \) and
+   \begin{align}
+   \bar{s} + (\chi^2 - (\theta + l \Omega)^2)^2 = 0 \\
+   k + l = \begin{cases}
+   0 & \theta = 0 \\
+   -1 & \theta = \Omega/2
+   \end{cases}
+   \end{align}
+2. A cancelling zero at \( \bar{s} \) when \(\abs{l - k} \ge 2 \), and
+3. No cancelling zero at \( \bar{s} \) when \(\abs{l - k} < 2\)
+#+end_lemma
+
+*** COMMENT Root locus rules for \(1 - H(s) \)
+- The pole polynomial is of order \(2 n + 1 \), and the zero polynomial is of order \(2 n - 1 \). Thus there are two root locus branches that go to infinity.
+- \(\angle H_n(s) = \angle 1 = 2 k \pi\) for points \(s \) on the root locus.
+- Poles and zeros to the left of root locus points contribute an angle of \(0 \) to \(\angle H_n(s) \).
+- Each real pole to the right of root locus points contributes an angle of \(-\pi \).
+- Each real zero to the right of root locus points contributes an angle of \(\pi \).
+- So the the (number of poles - number of zeros) to the right of root locus points must be even.
+
+** Stability of the Swift-Hohenberg equation
+
+We can now address the question of stability for small periodic spatial forcing \(\epsilon \). We are interested in double (or higher order) poles at the origin. This requires (for distinct \(l \) and \(k \))
+\begin{align}
+\cancelto{0}{s} + (\chi^2 - (\theta + l \Omega)^2)^2 = 0 \\
+\cancelto{0}{s} + (\chi^2 - (\theta + k \Omega)^2)^2 = 0
+\end{align}
+From lemma \ref{thm:pole-zero-cancellation-for-H}, we also require one of the following conditions to be met for \(\theta \) and \(l,k \):
+\begin{align*}
+k + l = \begin{cases}
+  0 & \theta = 0 \\
+  -1 & \theta = \Omega/2
+\end{cases}
+\end{align*}
+Together, this gives us the values of the spatial forcing wavenumber \(\Omega \) at which instability can occur:
+\begin{align*}
+\theta = 0, l + k = 0 \implies &  \chi^2 = (\cancelto{0}{\theta} + l \Omega)^2 \implies \Omega = \frac{\chi}{\abs{l}} = \frac{\chi}{\abs{k}} \\
+\theta = \Omega/2, l + k = -1 \implies & \chi = (\cancelto{\Omega/2}{\theta} + l \Omega)^2 \implies \Omega = \frac{\chi}{\abs{l + 1/2}} = \frac{\chi}{\abs{k + 1/2}}
+\end{align*}
+
+Here is a summary of the double poles and zeros at the origin for \(H_{n,\theta}(s) \):
+#+attr_latex: :align r|r|r|c|r|r
+|--------------+------------+--------------+----------------------+----------------+------------------|
+| \(l,\ k \)   | \(l + k \) | \(\theta \)       | \(\Omega \)               | \(\abs{l-k} \) | Cancelling zero? |
+|--------------+------------+--------------+----------------------+----------------+------------------|
+| \(-1, 1 \)   | \(0 \)     | \(0 \)       | \(\chi \)               | \(2 \)         | Yes              |
+| \(-2, 2 \)   | \(0 \)     | \(0 \)       | \(\chi/2 \)             | \(4 \)         | Yes              |
+| \(-3, 3 \)   | \(0 \)     | \(0 \)       | \(\chi/3 \)             | \(6 \)         | Yes              |
+| \(\vdots  \) | \(0 \)     | \(\vdots  \) | \(\vdots  \)         | \(\vdots  \)   | Yes              |
+| \(-n, n \)   | \(0 \)     | \(0 \)       | \(\chi/n \)             | \(2 n \)       | Yes              |
+|--------------+------------+--------------+----------------------+----------------+------------------|
+| \(-1,0 \)    | \(-1 \)    | \(\Omega/2 \)     | \(2 \chi \)             | \(1 \)         | *No*               |
+| \(-2,1 \)    | \(-1 \)    | \(\Omega/2 \)     | \(2 \chi / 3 \)         | \(3 \)         | Yes              |
+| \(-3,2 \)    | \(-1 \)    | \(\Omega/2 \)     | \(2 \chi / 5\)          | \(5 \)         | Yes              |
+| \(\vdots\)   | \(-1 \)    | \(\vdots  \) | \(\vdots  \)         | \(\vdots  \)   | Yes              |
+| \(-n, n-1 \) | \(-1 \)    | \(\Omega/2 \)     | \(2 \chi / (2 n + 1) \) | \(2 n + 1 \)   | Yes              |
+|--------------+------------+--------------+----------------------+----------------+------------------|
+We see that while \(H_{n,\theta}(s) \) has \(2 n \) double poles at the origin, /only one/ of them does not correspond to a cancelling zero at the origin. This corresponds to the frequency \(\Omega = 2 \chi \), with lifted wavenumber \(\theta = \Omega/2 = \chi \).
+
+What this implies for the solution \(\psi \) is the following: Let \(\psi(t, k) \) be the spatial Fourier transform of \(\psi(t, x) \):
+\[
+\psi(t, k) = \int_{-\infty}^{\infty} \psi(t, x) e^{- j k x} \mathrm{d}x
+\]
+Then the family of ODEs satisfied by \(\psi_{t, k} \) (with no input)
+\begin{align*}
+\psi_t(t, k) = - (\chi^2 - k^2)^2 \psi(t, k) + f(k) \star \psi(t, k)
+\end{align*}
+where \(f(k) \) is the Fourier transform of \(\epsilon \cos(\Omega x) \). In the lifted space, this gives us the bi-infinite family of ODEs for
+\begin{align*}
+\hat{\psi}_{\theta}(t) = \begin{pmatrix} \vdots \\\psi(t, \theta - \Omega)\\ \psi(t, \theta)\\ \psi(t, \theta + \Omega) \\ \vdots \end{pmatrix}
+\end{align*}
+parametrized by \(\theta \):
+\begin{align*}
+\frac{d \hat{\psi}_{\theta}(t)}{d t} = - \begin{bmatrix}
+\ddots & & & & \\
+& (\chi^2 - (\theta - \Omega)^2)^2 &   &   & \\
+&   & (\chi^2 - \theta^2)^2 &   & \\
+&   &   & (\chi^2 - (\theta + \Omega)^2)^2 & \\ 
+& & & & \ddots
+\end{bmatrix} \hat{\psi}_\theta(t) + \hat{F} \hat{\psi}_\theta(t)
+\end{align*}
+where \(\hat{F} \) is the bi-infinite matrix representation of the convolution operator corresponding to \(\epsilon \cos(\Omega x) \):
+\begin{align*}
+\hat{F} = \begin{bmatrix}
+\ddots & \ddots & \ddots & & \\
+ \dots & F_1    & F_0    & F_{-1} & \dots \\
+ &              &  \ddots & \ddots & \ddots
+ \end{bmatrix} = \frac{\epsilon}{2} \begin{bmatrix} 
+ \ddots & \ddots & \ddots &        & \\       
+        &      1 & 0      &      1 & \\       
+        &        & \ddots & \ddots & \ddots 
+ \end{bmatrix}
+\end{align*}
+The above system is unstable when \(\Omega = 2 \chi \) and \(\theta = \Omega/2 = \chi \). We can verify this as follows:
+- Let \(\chi = 1 \).  Then \(( \chi^2 - (\theta + l \Omega)^2 )^2 = \left( 1 - 4 \left( l + 1/2 \right)^2 \right)^2\).  
+- Let \( \hat{\psi}_{\Omega/2, l} \) be the \(l^{\text{th}} \) entry of \( \hat{\psi}_{\Omega/2} \), /i.e./ \(\psi(t, \Omega/2 + l \Omega) \).
+
+The coupled system of equations is then
+\[
+\frac{\mathrm{d} \hat{\psi}_{\Omega/2, l}(t)}{\mathrm{d} t} = - (1 - 4(l + 1/2)^2)^2 + \epsilon/2 ( \psi_{\Omega/2, l-1}(t) + \psi_{\Omega/2, l+1}(t))
+\]
+
+#+begin_abstract
+Stability maps provide an alternative to the coarser but more general averaging method for open-loop vibrational control of second-order linear systems. This paper applies the technique of vibrational control using stability maps to higher order mechanical systems. Specifically, it is applied to the twin problems of finding stability maps of higher order time-parametric oscillators and of vibrationally stabilizing them around unstable equilibria. For certain types of parametric forcing, a geometric method is developed that overlays scaled versions of the stability maps for individual normal modes. A simple measure for the stabilizability of the system is proposed involving ratios of eigenvalues of the system, referred to as the scaling ratio. This method is applied to the analysis of vibrational stabilization of the muti-link linearized Kapitza pendulum, an inverted pendulum consisting of multiple links driven by vertical base motion. The use of the scaling ratio helps determine the range of parametric forcing parameters for which it can be vibrationally stabilized, as well as how the pendulum's inertial and geometric parameters affect this range.
+#+end_abstract
+
+# This paper studies the problem of stabilizing a multiple link inverted pendulum without feedback. To do this we consider an open-loop periodic input that /vibrationally stabilizes/ the time-periodic system. The standard method to analyze vibrational control involves applying averaging theory to find a stabilizing open-loop periodic input. In recent years a method based on stability maps has been proposed by Berg et al that, while less general than averaging theory, makes available a larger class of lower frequency stabilizing inputs. The stabilization of a multiple link inverted pendulum is a higher-order analogue of this method as applied to the classical example of vibrational control of the vertically forced inverted pendulum. We apply vibrational control to the modes of the linearized multiple link inverted pendulum to obtain conditions on its inertial and kinematic configurations for stability.
+
+#+LATEX: \end{frontmatter}
+
+* Code                                                                :noexport:
+#+NAME: compute-traces 
+#+BEGIN_SRC matlab
+  %% Plot the stability boundaries using the trace of the Monodromy map - UNSTABLE
+
+  %  in the UNSTABLE region
+  N = 100;
+  delta = 2*pi/N;
+
+  damping_coeff=0.0;
+
+  a_num = 100;
+  a_max = 0.5;
+  eps_num = 100;
+  eps_max = 2.5;
+
+  a_range = linspace(0,a_max,a_num); O = a_num;
+  eps_range = linspace(0,eps_max,eps_num); E = eps_num;
+
+  % omega_range = 0.0:omega_max/60:omega_max, O = length(omega_range);
+  % omega_range = 0.0:0.01:1.0, O = length(omega_range);
+  % eps_range = 0:0.01:2.0, E = length(eps_range);
+  % omega_rescaled_range = linspace(0.001,5,100), O = length(omega_rescaled_range);
+  % eps_rescaled_range = linspace(0.001,10,100), E = length(eps_rescaled_range);
+
+  traces = zeros(E,O);
+
+  %----
+  % Sine samples
+  sample_func = @cos;
+  %----
+  % Square samples
+  % sample_func = @square;
+  %----
+  % Ramp samples
+  % sample_func = @sawtooth;
+  %----
+  % Sine harmonics
+  % sample_func = @(x) cos(x) + cos(2*x) + cos(3*x);
+
+  for i=1:O
+      for j=1:E
+          samples = a_range(i) + eps_range(j) * sample_func((0:N-1) * 2*pi/N);
+          traces(j,i) = trace(AA_cumulative(0, N-1, samples, delta,damping_coeff));
+      end
+  end
+
+  %         samples = -1/omega_rescaled_range(i)^2 + ...
+  %             eps_rescaled_range(j)/omega_rescaled_range(i)^2 * sample_func((0:N-1) * 2*pi/N);
+#+END_SRC
+
+#+NAME: plot-stability-boundaries
+#+BEGIN_SRC matlab
+% scaling_factor = 1/(2 - 0.0447);
+
+% Z = abs(traces)>2;
+% Z = double(Z);
+% Z = Z * 1.34;
+% Z(Z == 0) = NaN;
+figure(33);
+%stability_plot = surf(omega_range, eps_range, Z, 'EdgeColor', 'none');
+% stability_plot = mesh(scaling_factor * omega_range.^2, scaling_factor *  eps_range, Z);
+% %stability_plot = mesh(omega_rescaled_range, eps_rescaled_range, Z);
+% view(0,90);
+% % mymap = rand(10,3);
+% mymap = [1 1 1; 0.7 0.7 0.7];
+% colormap(mymap);
+hold on;
+[C, h] = contour( scaling_factor * a_range, scaling_factor * eps_range, traces, [-2.0 2.0]);
+%[C, h] = contour(omega_rescaled_range, eps_rescaled_range, traces, [-2 2]);
+h.LineColor = [r, g, b];
+h.LineWidth = 1.6;
+
+xlabel('$a$');
+ylabel('$\epsilon$');
+% xlabel('\Omega'),ylabel('E');
+% title('Vibrational stabilization of the double-inverted pendulum');
+#+END_SRC
+
+#+NAME: create-mass-matrix
+#+BEGIN_SRC matlab
+function M = create_mass_matrix(size, r)
+%CREATE_MASS_MATRIX Create the mass matrix for an inverted pendulum with SIZE identical masses and links. r is the ratio of the higher to lower mass in the chain of masses.
+    if ~exist('r','var')
+        r = 1.0;
+    end
+
+    M = ones(size,size);
+
+    if r == 1.0
+        for m=1:size-1
+            for k=m+1:size
+                M(m,k) = (size - k + 1)/(size - m + 1);
+            end
+        end
+    else
+        for m=1:size-1
+            for k=m+1:size
+                M(m,k) = r^(k-m) * (1 - r^(size - k + 1))/(1 - r^(size - m + 1));
+            end
+        end
+    end
+
+end
+#+END_SRC
+
+* Introduction
+
+# Certain unstable time-periodic systems can be stabilized by the introduction of parametric forcing of appropriate frequency and amplitude, an open-loop stabilization method referred to as Vibrational Control (or Vibrational Stabilization). Vibrational Control has traditionally been thought of as a high frequency phenomenon \cite{bullo2002averaging,meerkov1980principle} analyzed using averaging methods, but recent work \cite{Berg_2015} has elucidated that it can be achieved with parametric oscillation at lower frequencies and carefully selected amplitudes.
+Time-periodic systems display the twin phenomena of parametric instability (or resonance) and vibrational stabilization. Parametric resonance is the destabilization of a nominally stable system whose parameters are varied time-periodically. This is observed in nature, for example, in Faraday waves on the surface of a fluid in an oscillated container \cite{benjamin1954} or as the Kelvin-Helmholtz instability with time-periodic shear \cite{kelly1965}. Among engineered systems, this phenomenon is observed in axially loaded columns subjected to time-periodic loads \cite{iwatsubo1974}, and in MEMS devices subjected to alternating voltage under appropriate conditions \cite{turner1998}. Parametric resonance is often undesirable, but can be used in favorable ways, such as in low-noise parametric amplifiers such as Varactors and in MEMS mass-sensing devices \cite{zhang2005mass,zhang2005}.
+
+The introduction of parametric forcing can also stabilize a nominally unstable system, a technique referred to as vibrational control (or vibrational stabilization). Vibrational control has traditionally been considered a high frequency phenomenon \cite{meerkov1980principle} and analyzed through the method of dynamical averaging. While very general, averaging theorems typically posit the existence of parameter value thresholds (typically parametric forcing frequencies) above which systems can be vibrationally stabilized. These thresholds are not specified and can be very large, making averaging methods inconvenient for design. Recent work by Berg \cite{Berg_2015} shows that vibrational stabilization can be achieved with parametric oscillation at lower frequencies with carefully selected amplitudes. As applied to a time-periodic second order linear system (such as Hill's equation), a two-dimensional /stability map/ obtained through classical methods such as Floquet theory can be used to identify stabilizing inputs. Stability maps of second-order linear systems have been used in the design of quadrupole ion traps \cite{douglas2009linear,lee2003stability}. In addition to providing more comprehensive predictions than those of averaging theory, this method has the advantage of unifying the analysis of parametric resonance and vibrational stabilization as different aspects of the same phenomenon.
+
+This paper extends the stability map based analysis of parametric resonance and vibrational stabilization to higher order linear mechanical systems. For certain types of parametric forcing, we obtain a simple geometric criterion for stability involving different scalings of the stability maps of the modes of the system, each of which obeys a version of the second-order Hill's equation. As opposed to applying the general Floquet theory, this method of overlapping maps has the advantage of providing a simple geometric measure and design criterion for the stabilizability of the system in terms of its normal modes. Information not provided by averaging methods, such as upper limits on parameter ranges for the stability of individual modes, turns out to be crucial for the stablility of the system as a whole.
+
+The canonical example of a system that can be vibrationally stabilized is the Kapitza pendulum \cite{nayfeh1995}, an inverted pendulum with vertical sinusoidal forcing applied to its base. This system has been studied using the classical Floquet theory and stability maps for second-order linear systems \cite{Berg_2015} as well as higher order averaging methods \cite{maggia2019}. As an application of the overlapping maps method, this paper analyzes the higher order system of a linearized Kapitza pendulum with multiple links. The geometric properties of the composite stability map allows us to predict the range of parametric forcing parameters that vibrationally stabilize the system, as well as how the system's inertial and kinematic properties affect this range.
+
+The rest of the paper is organized as follows: Section \ref{sec:euler-lagrange-general} derives the general equations of motion for a mechanical system in terms of its mass and time-varying stiffness matrices. Section \ref{sec:stabilizing-euler-lagrange-general} investigates the conditions under which its linearization can be diagonalized. This form provides the basis for extending the stability map technique for second order systems, reviewed in section \ref{sec:kapitza-review}, to higher order systems in section \ref{sec:superimposing-stability-maps}. Sections \ref{sec:double-inverted-pendulum-model} and \ref{sec:dip-diagonalization} apply this stability analysis to the example of a double inverted pendulum driven by periodic vertical base motion, and section \ref{sec:nip} extends this to the general case of \(N \) links. Insights about the stabilizability of this system through open-loop vibrational control are noted in section \ref{sec:nip-observations}. Finally, section \ref{sec:conclusion} presents directions for future work.
+
+* The Euler-Lagrange equations \( \phi + \int x^2 \)
+\label{sec:euler-lagrange-general}
+We consider a general \(n \)-DOF mechanical spring-mass system with state \(q \in \mathbb{R}^{n} \) and Lagrangian
+\begin{align}
+\label{eq:lagrangian-general}
+L(q, p) & = \frac{1}{2} p^{\star} M_{q} p - \frac{1}{2} q^{\star} K_{q} q \\
+ & =: T(q, p) - V(q) \nonumber \\
+ q, p & \in \mathbb{R}^n,\quad M_{q}, K_{q} \in \mathbb{R}^{n \times n} \nonumber
+\end{align}
+where \(p := \dot{q} \) is the generalized velocity, and \(M_{q} \) and \(K_{q} \) are (real and symmetric) state-dependent generalized mass and stiffness matrices respectively. Such a formulation describes, for instance, the multiple link inverted pendulum that we investigate in section \ref{sec:dip-diagonalization}. In this section we derive the general equations of motion for this system.
+
+To aid in the tensorial representation of quantities we need, we will consider derivatives as row operators:
+\begin{equation}
+\label{eq:ddq-operator-def}
+\frac{\partial }{\partial q} := \begin{bmatrix} \frac{\partial }{\partial q_{1}} & \frac{\partial }{\partial q_{2}} & \dots & \frac{\partial }{\partial q_{n}} \end{bmatrix},
+\end{equation}
+so that \(\frac{\partial L}{\partial q} : \mathbb{R}^{n} \to \mathbb{R} \) is a linear functional on \(\mathbb{R}^{n} \), and for a vector valued function \(f(q) \) such that \(f:\mathbb{R}^{n} \to \mathbb{R}^{m}\),
+\begin{equation*}
+\frac{\partial f}{\partial q} := \begin{bmatrix} \frac{\partial f}{\partial q_{1}} & \frac{\partial f}{\partial q_{2}} & \dots & \frac{\partial f}{\partial q_{n}}  \end{bmatrix}
+\end{equation*}
+is the Jacobian of \(f \).
+
+We will consider the directional derivative in the direction \(v \in \mathbb{R}^{n}\) produced by the action of derivatives \(\frac{\partial }{\partial q}  \) and \(\frac{\partial }{\partial p}  \), denoted by \(\left( \frac{\partial \cdot}{\partial q} [v] \right) \):
+\begin{align}
+\frac{\partial L}{\partial p} [v] & = \frac{\partial T}{\partial p} [v] = \frac{1}{2} \left( [v]^{\star} M_q p + p^{\star} M_q [v] \right) \nonumber\\
+& = p^{\star} M_{q} [v]\nonumber \\
+\frac{\mathrm{d} }{\mathrm{d} t} \left( \frac{\partial L}{\partial p} \right) [v] & = \frac{\mathrm{d} }{\mathrm{d} t} \left( p^{\star} M_{q} \right) [v] \nonumber \\
+& = \dot{p}^{\star} M_{q} [v] + p^{\star} \partial_q M_{q} \left( \frac{\mathrm{d} q}{\mathrm{d} t} \right)\ [v] \nonumber \\
+& = \dot{p}^{\star} M_{q} [v] + p^{\star} \partial_q M_{q} (p)\ [v] \label{eq:dLdp-general}
+\end{align}
+Note that \(\partial_q M_{q}: \mathbb{R}^{n} \to \mathbb{R}^{n \times n} \) is a linear operator from \(\mathbb{R}^{n} \) to the space of \(n \times n \) matrices, and thus a third order tensor. We denote its action on \(p \) as \(\partial_q M_{q}(p) \in \mathbb{R}^{n \times n}\).
+
+Similarly,
+\begin{align}
+  \label{eq:dLdq-general} 
+  \frac{\partial L}{\partial q} [v] & = \frac{1}{2} \frac{\partial }{\partial q}  (p^{\star} M_{q} p) [v] - \frac{1}{2} \frac{\partial }{\partial q} \left( q^{\star} K_{q} q \right) [v] \nonumber\\
+  = & \frac{1}{2} p^{\star} \partial_q M_{q}(v)\ p - \frac{1}{2} q^{\star} \partial_q K_{q}(v)\ q \nonumber \\
+  \ & - q^{\star} K_{q} [v]
+%  = & \frac{1}{2} p^{\star} \left( \frac{\partial }{\partial q} \otimes M_{q} \right) \left(p \otimes I \right) \nonumber \\
+%  & - \frac{1}{2} q^{\star} \left( \frac{\partial }{\partial q} \otimes  K_{q}\right) \left( q \otimes I \right) - q^{\star} \sym{K_{q}} 
+\end{align}
+
+The Euler-Lagrange equations are
+\begin{align}
+\label{eq:euler-lagrange-general}
+\frac{\mathrm{d} }{\mathrm{d} t} \left( \frac{\partial L}{\partial p}  \right) [v] - \frac{\partial L}{\partial q} [v] = F^{\star} [v]
+\end{align}
+where \(F \) is the vector of generalized external forces on the system. From equations \ref{eq:dLdp-general}, \ref{eq:dLdq-general}, we get
+\begin{align}
+\label{eq:euler-lagrange-general-2}
+& (\dot{p}^{\star} M_{q}  + q^{\star} K_{q} - F^{\star}) [v] \nonumber\\
+& = - p^{\star} \partial_q M_{q}(p) [v] + \frac{1}{2} p^{\star} \partial_q M_{q}(v)\ p \nonumber \\
+\ & - \frac{1}{2} q^{\star} \partial_q K_{q}(v)\ q
+% & = - \frac{1}{2} p^{\star} \left( \frac{\partial }{\partial q} \otimes M^{\star}_{q} \right) \left( p \otimes I \right) \nonumber \\
+% & \quad - \frac{1}{2} q^{\star} \left( \frac{\partial }{\partial q} \otimes K_{q} \right) \left( q \otimes I \right)
+\end{align}
+
+We can write the action of the derivative \(\partial_q M_{q} \) on \(v \) in matrix notation as follows:
+\begin{equation}
+\label{eq:tensor-action-as-matrix}
+\underbrace{\partial_q M_{q}(v)}_{n \times n} =  \underbrace{\left(\frac{\partial }{\partial q} \otimes M_{q}\right)}_{n \times n^2}  \underbrace{\left(v \otimes I_{n \times n}\right)}_{n^2 \times n}
+\end{equation}
+and the Euler-Lagrange equations are
+\begin{align}
+\label{eq:euler-lagrange-general-3}
+& (\dot{p}^{\star} M_{q}  + q^{\star} K_{q} - F^{\star}) [v] = \nonumber\\
+\ & - p^{\star} \left( \frac{\partial }{\partial q} \otimes M_{q} \right) \left(p \otimes I\right) [v] \nonumber \\
+\ & + \frac{1}{2} p^{\star} \left( \frac{\partial }{\partial q} \otimes M_{q} \right) \left(v \otimes I\right)\ p \nonumber\\
+\ & - \frac{1}{2} q^{\star} \left( \frac{\partial }{\partial q} \otimes K_{q} \right) \left(v \otimes I\right)\ q
+\end{align}
+We can write the \(i^{th} \) equation explicitly by setting \(v = e_i \), the \(i^{th} \) canonical basis vector, giving us
+\begin{align}
+\label{eq:euler-lagrange-general-4}
+& \left(M_{q} \dot{p}\right)_i + \left( K_{q} q \right)_i - f_i = \nonumber \\
+& \sum\limits_{l=1}^n \sum\limits_{k=1}^n \left( \frac{1}{2} \frac{\partial M_{l, k}}{\partial q_i} - \frac{\partial M_{l, i}}{\partial q_{k}} \right) p_l p_k \nonumber \\
+& - \frac{1}{2} \sum\limits_{l=1}^n \sum\limits_{k=1}^n \frac{\partial K_{l,k}}{\partial q_{i}} q_l q_k, \quad i=1, \dots, n
+\end{align}
+#+begin_export latex :exports none
+\begin{equation}
+\label{eq:dLdp-general}
+\frac{\mathrm{d} }{\mathrm{d} t}\frac{\partial L}{\partial p} = \dot{p}^{\star} \sym{M_{q}} + p^{\star} \left( \frac{\partial }{\partial q} \otimes \sym M_{q} \right) \left( p \otimes I \right)
+\end{equation}
+#+end_export
+
+** Extension to time-dependent stiffness matrices
+The effect of time-dependent parametric forcing, as in the case of vibrational stabilization, can be handled easily in the formulation of equation (\ref{eq:euler-lagrange-general-2}). With a stiffness matrix \(K_{q}(t) \) that depends explicitly on time, \(\frac{\mathrm{d} }{\mathrm{d} t} \frac{\partial L}{\partial p}  \) is unchanged, as is \(\frac{\partial L}{\partial q}  \). This gives the Euler-Lagrange equations as
+\begin{align}
+\label{eq:euler-lagrange-general-time-dependent}
+& (\dot{p}^{\star} M_{q} + q^{\star} K_q(t) - F^{\star}) [v] = \nonumber\\
+\ &  - p^{\star} \partial_q M_{q}(p) [v] + \frac{1}{2} p^{\star} \partial_q M_{q}(v)\ p \nonumber \\
+\ & - \frac{1}{2} q^{\star} \partial_q K_q(t)(v)\ q
+\end{align}
+* Diagonalizing the linearized Euler-Lagrange equations 
+\label{sec:stabilizing-euler-lagrange-general}
+To investigate vibrational stabilization, we consider the linearization of equation (\ref{eq:euler-lagrange-general-time-dependent}) about an equilibrium point. Without loss of generality, we may assume the equilibrium at \((q, p) = (0, 0)\). Assuming \(M \) and \(K \) are analytic in \(q \) at \(0 \), we can ignore terms on the right hand side of the equation that are \(\mathcal{O}(q^2) \), \(\mathcal{O}(p^2) \) or larger. This gives the simple linearization
+\begin{align}
+\label{eq:euler-lagrange-general-time-dependent-linear}
+% M(\bar{q)} \dot{p} + K(\bar{q,t)} q - F = - \frac{1}{2} \left( \bar{q}^{\star} \otimes I \right) \left.\left( \left( \frac{\partial }{\partial q}  \right)^{\star} \otimes K^{\star}(q, t) \right)\rvert_{\bar{q}} \bar{q}
+M_0 \ddot{q} + K_0(t) q - F = 0
+\end{align}
+where we have written the equations of motion in the standard column-vector (contravariant) form and used \(\dot{p} = \ddot{q} \). Since \(M_0 \) and \(K_0(t) \) are real and symmetric, there is a congruence transformation that simultaneously diagonalizes them for any \(t \). This transformation is time-dependent in general and thus cannot be used to find the modes of \ref{eq:euler-lagrange-general-time-dependent-linear}. However, the separable case  \(K_q(t) = f(t) K_{q}\) where \(f(t) \) is a scalar remains amenable to diagonalization. This is the case when, for example, the the same time-varying body force acts as a restoring force on all elements of the system. This example is expanded upon in section \ref{sec:double-inverted-pendulum-model}. Under this condition we can find a transformation \(T \) such that
+\begin{align}
+& M_0 \ddot{q} + f(t) K_0 q - F = 0 \label{eq:euler-lagrange-separable-linear}\\
+& T^{\star} M_0 T = \hat{m}, \quad \hat{m} = \mathtt{diag}\left(  m_1, \dots, m_n  \right)\label{eq:diagonalization-general}\\
+& T^{\star} f(t) K_0 T = f(t) \hat{k}, \quad  \hat{k} = \mathtt{diag}\left(  k_1, \dots,  k_n  \right)\\
+& q(t) =: T \theta(t).
+\end{align}
+The equations of motion in the \(\theta(t) \) coordinates are then decoupled:
+\begin{align}
+\label{eq:euler-lagrange-general-diagonalized}
+m_i \ddot{\theta}_i(t) + f(t) k_i \theta_i(t) = (T^{\star} F)_i ,\quad i=1, \dots, n
+\end{align}
+
+Under this condition, we can now relate the time-parametric properties of the individual systems in \ref{eq:euler-lagrange-general-diagonalized} to that of the original linearized system \ref{eq:euler-lagrange-general-time-dependent-linear}. In particular, we are interested in the vibrational stabilizability of the original system at the equilibrium point when \(f(t) \) is periodic. Then each system in \ref{eq:euler-lagrange-general-diagonalized} is a Hill ODE whose stability properties have been extensively studied.
+
+* The stability map for Hill's equation
+\label{sec:kapitza-review}
+#+begin_export latex
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=0.75\columnwidth]{figures/vib_stab_vs_averaging.png}}
+\caption[]{\footnotesize \label{fig:vib-stab-vs-averaging} Vibrational stabilization of Mathieu's equation as a function of the parameters \((a, \epsilon) \) from equation (\ref{eq:hill-ode-standard-form}). Lower curve, in red: the threshold predicted by first order averaging above which the system can be stabilized. The averaging threshold is increasingly close to the actual threshold as \(a \to 0 \). Upper band, in green: The range of \((a,\epsilon) \) for which the system is vibrationally stabilized. Averaging does not predict the upper boundary of stability, a crucial aspect of the stability analysis of the higher order system in section \ref{sec:stabilizing-euler-lagrange-general}.}
+\end{figure}
+#+end_export
+
+In this section we briefly review the behavior of Hill's equation \cite{magnus2013hill} in different parametric forcing regimes and its stability analysis, including results from averaging theory.
+
+Since the parametric forcing \(f(t) \) is periodic, we may write it as a Fourier series
+\begin{align}
+\label{eq:hill-ode-fourier}
+f(t) & = a + \sum\limits_{n=1}^{\infty} \cos(n \omega t) + \sum\limits_{n=1}^{\infty} \sin(n \omega t) \\
+& =: a + \epsilon \tilde{f}(\omega t)
+\end{align}
+where \(\omega = 2 \pi/T \) and \(\tilde{f}(t) \) has zero mean. Then Hill's equation is
+\begin{align}
+\label{eq:hill-ode-standard-form}
+\ddot{\theta}(t) + \left( a + \epsilon \tilde{f}(\omega t) \right) \theta(t) = 0
+\end{align}
+Given \(\tilde{f} \), the stability of Hill's equation can be then visualized using a stability map in the \(a, \epsilon \) space. Note that we can set \(\omega = 1 \) without loss of generality by rescaling time. This scales \(a \to a/\omega^2 \), so that the limit \(\omega \to \infty \) corresponds to \(a \to 0 \).
+
+The stability map of system \ref{eq:hill-ode-standard-form} in the \((a,\epsilon) \) space can be computed in several equivalent ways, such as by using Hill's infinite determinant, the system's Floquet\cite{nayfeh1995} multipliers or by finding the eigenvalues of the monodromy (or return) map of the system as a function of \(a \) and \(\epsilon \). The latter method works as follows: Since the generator for Hill's equation is Hamiltonian, the state transition matrix \(\Phi_t = \Phi(t,0) \) of the system is symplectic. Or equivalently,
+\begin{align*}
+\frac{\mathrm{d} }{\mathrm{d} t} \det{\Phi_t} & = \det{\Phi_t} \tr \left( \dot{\Phi}_t \Phi_t^{-1} \right) \\
+& = \det{\Phi_t} \tr \left( \left[ \begin{smallmatrix} 0 & 1 \\ - a - \epsilon \tilde{f}(t) & 0 \end{smallmatrix} \right] \Phi_t \Phi_t^{-1} \right) \\
+& = \det{\Phi_t} \tr \left[ \begin{smallmatrix} 0 & 1 \\ - a - \epsilon \tilde{f}(t) & 0 \end{smallmatrix} \right] = 0
+\end{align*}
+so that \(\det \Phi(t,0) = 1 \) for all \(t \). The eigenvalues are either both on the unit circle or on opposite sides of it. The system is thus stable when both eigenvalues of \(\Phi \) are on the unit circle (\(\abs{\tr(\Phi)} \le 2 \)) and unstable otherwise.
+
+When \(f(t) = a + \epsilon \cos(t) \) equation (\ref{eq:hill-ode-standard-form}) becomes Mathieu's equation, for which the stability diagram in the \((a,\epsilon) \) parameter space involves the well Known Arnold tongues (Figure \ref{fig:arnold-tongues}). Here \(a \) is the square of the nominal ``natural frequency'' of the system, and \(\epsilon \) is the strength of the variation in parametric forcing.
+
+#+begin_export latex
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=0.9\columnwidth]{figures/arnold_tongues.png}}
+\caption[]{\footnotesize \label{fig:arnold-tongues} The stability diagram for the parametrically forced Mathieu's Equation. In the space of the parameters $a$ and $\epsilon$, we see regions of instability (gray) corresponding to the Arnold tongues, as well as a stable region for the nominally unstable system corresponding to $a < 0$. The two related phenomena are commonly referred to as parametric resonance and vibrational stabilization, respectively.}
+\end{figure}
+#+end_export
+
+We differentiate between the two cases \(a \lessgtr 0 \). When \(a > 0\), the system is nominally (in the absence of parametric forcing) a simple harmonic oscillator and neutrally stable. The addition of parametric forcing can destabilize the system through /parametric resonance/, leading to structures like the Arnold tongues (Figure \ref{fig:arnold-tongues}) in the \((a, \epsilon) \) plane. When \(a < 0 \), it is a nominally unstable second order system, akin to a linearized inverted pendulum. The right choice of parametric forcing can stabilize the system, a phenomenon we refer to as /vibrational stabilization/. The method of overlapping stability diagrams detailed in section \ref{sec:superimposing-stability-maps} for separable stiffness matrices (\(K_q(t) = f(t) K_q \)) works in both regimes, but we focus on the latter case here.
+# Para here focusing on vibrational stabilization
+
+Vibrational stabilization has traditionally been analyzed using the method of dynamical averaging. It is illustrative to compare it with the stability map method. The averaging theorem guarantees the existence of a threshold, represented as a curve in the \(a, \epsilon \) space above which an the system can be stabilized for some \(\epsilon \). For Mathieu's equation, this condition is \(- a - \epsilon^2/2 < 0 \) or \(\epsilon > \sqrt{-2 a} \). This is shown as the lower (red) line in figure \ref{fig:vib-stab-vs-averaging}. As \(a \to 0 \) (corresponding to high frequency parametric excitation) the threshold approaches the lower limit of the band of stability. However, the averaging method does not yield any insight on the upper limit on \(\epsilon \) for stability. This limit is critical when considering the stability of the higher order system \ref{eq:euler-lagrange-general-time-dependent-linear} using overlapping stability plots of its normal modes, as we will see in the next section.
+
+
+
+* Superimposing stability maps
+\label{sec:superimposing-stability-maps}
+In this section we connect the stability of the general linearized system in \ref{eq:euler-lagrange-general-diagonalized} to that of the second order Hill ODE and apply it to the special case of Mathieu's equation. In doing so we obtain a simple geometric interpretation of the stability of the higher order system in terms of stability maps of Hill's equation:
+\begin{equation}
+\label{eq:hill-ode}
+\ddot{\theta}(t) + f(t) \theta(t) = 0,\ f(t + T) = f(t)
+\end{equation}
+
+\begin{equation}
+\begin{bmatrix}
+A & A & A \\
+A & A & A \\
+A & \lapl & \abs{A} 
+\end{bmatrix}
+\end{equation}
+
+The key observation is that each of the modes of system \ref{eq:euler-lagrange-general-diagonalized} (without external forces) has a stability diagram that is a scaled version of the stability diagram for Hill's equation (\ref{eq:hill-ode}), since
+\begin{equation}
+\label{eq:hill-odes-scaled}
+\ddot{\theta}_i(t) + \frac{k_i}{m_i} f(t) \theta_i = 0,\quad i=1, \dots, n
+\end{equation}
+Given \(f(t) \), the original system is thus stable where all \(n \) stability diagrams corresponding to the parametric forcing functions \(k_i/m_i f(t) \) are stable. With \(f(t) = a + \epsilon \tilde{f}(t) \) as before,
+\begin{equation*}
+\frac{k_i}{m_i} f(t) = \left( \frac{k_i}{m_i} a \right) + \left( \frac{k_i}{m_i} \epsilon \right) \tilde{f}(t),
+\end{equation*}
+so \(a \) and \(\epsilon \) are both scaled proportionally for each normal mode. The region of stability of the full system is thus obtained as the intersection of the stable regions for \(n \) copies of the stability diagram for \((a,\epsilon) \), each scaled by \(k_i/m_i \). This gives us a simple geometric way to characterize the stability of system \ref{eq:euler-lagrange-general-diagonalized}.
+
+ # Figures \ref{fig:dip-vibrational-stabilization-zoomed-shaded} and \ref{fig:dip-vibrational-stabilization-same-zoomed-shaded} show this for different configurations of a fourth order mechanical system.
+
+# para on what this means for the ratio of max/min eigenvalues of \(M^{-1} K \)
+Let \(\lambda_i = k_i/m_i \), with \(\lambda_{max} = \max \left\{ k_{i}/m_{i};\ i = 1, \dots, n \right\} \) and \(\lambda_{min} \) defined similarly.[fn:why-lambda] Then the /scaling ratio/ \(\lambda_{max}/\lambda_{min} \) is a measure of the degree of overlap between the stability diagrams for the \(n \) normal modes. For Mathieu's equation, figures \ref{fig:overlap-par-res} and \ref{fig:overlap-vib-stab} show the overlap for different scaling ratios. In the parametric resonance regime (\(a \ge 0 \)), overlapping stability diagrams for the different modes has the effect of introducing additional tongue structures to the picture (figure \ref{fig:overlap-par-res}). The picture is qualitatively similar to that of the scalar Mathieu's equation for ratios close to \(1 \), but the range of stabilizing parameters decreases and the system becomes easier to destabilize with increasing scaling ratio. For the purpose of actively destabilizing systems using parametric resonance, all but the first tongue for each mode (at \(k_i/m_i a = 1/2 \)) are generally inaccessible at low amplitudes \(\epsilon \) due to damping, so we are primarily concerned with the picture containing the combination of the first tongue for all modes.
+
+In the vibrationally stabilized regime (\(a < 0 \)), overlapping the stability diagrams for different modes has the effect of shrinking the range of parameters which can stabilize the system (figure \ref{fig:overlap-vib-stab}). For scaling ratios \(\lambda_{max}/\lambda_{min}\) close to \(1 \), the behavior is qualitatively similar to that of the scalar Mathieu's equation. However, the stable region shrinks rapidly with increasing stability ratio. The upper limit on stabilizing amplitudes \(\epsilon \) (that the method of averaging does not predict) is a critical factor in the degree of overlap between the stable regions for the modes.
+
+The scaling method thus lets us use the parametric stability diagram for Hill's equation (equation (\ref{eq:hill-ode})) to determine that of higher order systems with similar forcing (equation (\ref{eq:euler-lagrange-separable-linear})) through a simple geometric method. The maximum ratio \(\lambda_{max}/\lambda_{min} \) of the mode scaling parameters \(k_i/m_i \) provides a numerical measure of the system's stabilizability, or the range of system parameters over which the system remains stable. In the following sections we apply this idea to an inverted pendulum with multiple links and investigate how the system's parameters relate to its stabilizability through parametric forcing.
+# Plot showing this for parametric resonance and vibrational stabilization for different overlaps (4 part graph)
+
+#+begin_export latex
+\begin{figure}[ht]
+  \centering
+  \subfloat[\(\lambda_{max}/\lambda_{min} = 1.25\)]{\includegraphics[width=0.8\columnwidth]{figures/overlap-125-parametric-resonance.png}}\\
+  \subfloat[\(\lambda_{max}/\lambda_{min} = 3.0\)]{\includegraphics[width=0.8\columnwidth]{figures/overlap-300-parametric-resonance.png}}
+  \caption{\footnotesize \label{fig:overlap-par-res} Plots of the stability diagrams in the parametric resonance regime of \((a,\epsilon) \) space for systems of the form \ref{eq:hill-odes-scaled} with \(f(t) = a + \epsilon \cos(t) \) (Mathieu's equation). At least one mode is unstable in the gray areas. The two plots are for different scaling factors \(\lambda_{max}/\lambda_{min} \). For ratios close to \(1 \), the stability diagram is qualitatively unchanged from that of Mathieu's equation. For larger ratios, we see additional Arnold tongues and a smaller overall range of parameters where the system remains stable.}
+\end{figure}
+#+end_export
+
+#+begin_export latex
+\begin{figure}[H]
+  \centering
+\includegraphics[width=0.5\textwidth]{figures/overlap-125-parametric-resonance.png}
+  \caption{test figure}
+  \label{fig:test-figure}
+\end{figure}
+#+end_export
+
+#+begin_export latex
+\begin{figure}[ht]
+  \centering
+  \subfloat[\(\lambda_{max}/\lambda_{min} = 1.25\)]{\includegraphics[width=0.8\columnwidth]{figures/overlap-125-vibrational-stabilization.png}}\\
+  \subfloat[\(\lambda_{max}/\lambda_{min} = 3.0\)]{\includegraphics[width=0.8\columnwidth]{figures/overlap-300-vibrational-stabilization.png}}
+  \caption{\footnotesize \label{fig:overlap-vib-stab} Plots of the stability daigrams in the vibrational stabilization regime of \((a, \epsilon) \) space for systems of the form \ref{eq:hill-odes-scaled} with \(f(t) = a + \epsilon \cos(t) \) (Mathieu's equation). At least one mode is unstable in the gray areas. The two plots are for different scaling factors \(\lambda_{max}/\lambda_{min} \). For ratios close to \(1 \), there is considerable overlap between the stable regions for the different modes. For larger ratios, the range of parameters where the system can be vibrationally stabilized rapidly shrinks.}
+\end{figure}
+#+end_export
+
+
+* The double inverted pendulum model
+\label{sec:double-inverted-pendulum-model}
+#+begin_export latex
+\begin{figure}
+    \centering
+    \def\svgwidth{0.5\columnwidth}
+    \import{./figures/}{double-pendulum.pdf_tex}
+    \caption{\footnotesize \label{fig:double-pendulum} The double inverted pendulum model consisting of masses \(m_1 \) and \(m_2 \) and links of length \(l_1 \) and \(l_2 \). The angles from the vertical are \(\phi_1 \) and \(\phi_2 \) respectively. The base moves vertically according to \(Y(t) \).}
+\end{figure}
+#+end_export
+
+In this section we consider a model of an inverted pendulum with two links subjected to vertical base motion. We derive the equations of motion and linearize it about the vertical equilibrium point before adding in the effect of base motion. In section \ref{sec:dip-diagonalization} we will formulate and apply our vibrational stabilization criteria to this model. The more general case of multiple links is covered from section \ref{sec:nip} onwards.
+
+Our double inverted pendulum consists of massless links of length \(l_1, l_2 \) and masses \(m_1, m_2 \) respectively. The links are free to pivot in the plane of Figure \ref{fig:double-pendulum}, and the angles from the vertical to the two links are \( \phi_1\) and \(\phi_2 \) respectively, with \(\phi = \begin{bmatrix} \phi_{1} &  \phi_{2} \end{bmatrix}^{T} \). In the following we derive the equations of motion for this system using the Euler-Lagrange equations.
+
+
+
+** Kinematics
+With the origin at the lower pivot, the positions of the masses are given in cartesian coordinates by:
+\begin{align*}
+x_1, y_1 &= l_1 \sin(\phi_1), l_1 \cos(\phi_1) \\
+x_2, y_2 &= l_1 \sin(\phi_1) + l_2 \sin(\phi_2), l_1 \cos(\phi_1) + l_2 \cos(\phi_2)
+\end{align*}
+With corresponding velocity components
+\begin{align}
+\label{eq:dip-kinematics-velocity}
+\dot{x}_1, \dot{y}_1 & = l_1 \cos(\phi_1) \dot{\phi_1}, - l_1 \sin(\phi_1) \dot{\phi_1} \\
+\dot{x}_2, \dot{y}_2 & = l_1 \cos(\phi_1) \dot{\phi_1} + l_2 \cos(\phi_2) \dot{\phi_2}, \nonumber\\
+ & - l_1 \sin(\phi_1) \dot{\phi_1} - l_2 \sin(\phi_2) \dot{\phi_2}
+\end{align}
+
+
+
+** Dynamics
+The kinetic energy of the system is
+\begin{align}
+\label{eq:dip-dynamics-T}
+& T(\phi, \dot{\phi}) = \frac{1}{2} m_1 (\dot{x}_1^2 + \dot{y}_1^2) + \frac{1}{2} m_2 (\dot{x}_2^2 + \dot{y}_2^2) \nonumber \\
+& = \frac{1}{2} (m_1 + m_2) l_1^2 \dot{\phi_1}^2 + \frac{1}{2} m_2 l_2^2 \dot{\phi_2}^2 \nonumber \\
+& + m_2 l_1 l_2 \cos(\phi_1 - \phi_2) \dot{\phi_1} \dot{\phi_2} \nonumber \\
+& = \frac{1}{2} \dot{\phi}^{T} \left[ \begin{smallmatrix}
+ (m_{1} + m_{2}) l_{1}^2 &  m_{2} l_{1} l_{2} \cos(\phi_1 - \phi_2) \\
+ m_{2} l_{1} l_{2} \cos(\phi_1 - \phi_2) &  m_{2} l_{2}^2
+ \end{smallmatrix} \right] \dot{\phi} \nonumber \\
+& =: \frac{1}{2} \dot{\phi}^{T} M_\phi\ \dot{\phi}
+\end{align}
+and the potential energy (with datum at the fully extended position)
+\begin{align}
+\label{eq:dip-dynamics-V}
+V(\phi) & = - (m_1 + m_2) g l_1 (1 - \cos(\phi_1)) - m_2 g l_2 (1 - \cos(\phi_2)) \nonumber \\
+& = \frac{1}{2} \phi^{T} \left[\begin{smallmatrix}
+-2 (m_{1} + m_{2}) g l_{1} \frac{1 - \cos(\phi_1)}{\phi_1^2} & 0 \\
+0 & - 2 m_{2} g l_{2} \frac{1 - \cos(\phi_2)}{\phi_2^2}
+ \end{smallmatrix}\right] \phi \nonumber \\
+ & =: \frac{1}{2} \phi^{T} K_\phi\ \phi
+\end{align}
+Following equation (\ref{eq:euler-lagrange-general-4}), the Euler-Lagrange equations are: 
+\begin{align}
+\label{eq:dip-euler-lagrange-general}
+& \left(M_{\phi} {\ddot{\phi}}\right)_i + \left( K_{\phi} \phi \right)_i = \nonumber \\
+& \sum\limits_{l=1}^2 \sum\limits_{k=1}^2 \left( \frac{1}{2} \frac{\partial M_{\phi\ l, k}}{\partial \phi_i} - \frac{\partial M_{\phi\ l, i}}{\partial \phi_{k}} \right) \dot{\phi}_l \dot{\phi}_k \nonumber \\
+& - \frac{1}{2} \sum\limits_{l=1}^2 \sum\limits_{k=1}^2 \frac{\partial K_{\phi\ l,k}}{\partial \phi_{i}} \phi_l \phi_k, \quad i=1, 2
+\end{align}
+or
+# The Lagrangian of the system \(L = T - V \), and we have
+# \begin{align}
+# \label{eq:dip-dynamics-L-1}
+# \frac{\partial L}{\partial \dot{\phi_1}} & = (m_1 + m_2) l_1^2 \dot{\phi_1} + m_2 l_1 l_2 \cos(\phi_1 - \phi_2) \dot{\phi_2}\\
+# \frac{\partial L}{\partial \dot{\phi_2}} & =  m_2 l_2^2 \dot{\phi_2} + m_2 l_1 l_2 \cos(\phi_1 - \phi_2) \dot{\phi_1} \\
+# \frac{\partial L}{\partial \phi_1} & = (m_1 + m_2) g l_1 \sin(\phi_1) \nonumber\\
+# & - m_2 l_1 l_2 \sin(\phi_1 - \phi_2) \dot{\phi_1} \dot{\phi_2} \\
+# \frac{\partial L}{\partial \phi_2} & = m_2 g l_2 \sin(\phi_2) + m_2 l_1 l_2 \sin(\phi_1 - \phi_2) \dot{\phi_1} \dot{\phi_2}
+# \end{align}
+# And the Euler-Lagrange equations are:
+\begin{align}
+\label{eq:dip-dynamics-L-2}
+%&\frac{\mathrm{d} }{\mathrm{d} t} \frac{\partial L}{\partial \dot{\phi_1}} = \frac{\partial L}{\partial \phi_1} \nonumber\\
+&(m_1 + m_2) l_1^2 \ddot{\phi_1} + \nonumber \\
+& m_2 l_1 l_2 \left( \cos(\phi_1 - \phi_2) \ddot{\phi_2} - \sin(\phi_1 - \phi_2) (\dot{\phi_1} - \dot{\phi_2}) \dot{\phi_2} \right) \nonumber\\
+& = (m_1 + m_2) g l_1 \sin(\phi_1) - m_2 l_1 l_2 \sin(\phi_1 - \phi_2) \dot{\phi_1} \dot{\phi_2} \\
+%&\frac{\mathrm{d} }{\mathrm{d} t} \frac{\partial L}{\partial \dot{\phi_2}} = \frac{\partial L}{\partial \phi_2} \nonumber\\
+&m_2 l_2^2 \ddot{\phi_2} + \nonumber\\
+& m_2 l_1 l_2 ( \cos(\phi_1 - \phi_2) \ddot{\phi_1} - \sin(\phi_1 - \phi_2) (\dot{\phi_1} - \dot{\phi_2}) \dot{\phi_1} ) \nonumber\\
+& = m_2 g l_2 \sin(\phi_2) + m_2 l_1 l_2 \sin(\phi_1 - \phi_2) \dot{\phi_1} \dot{\phi_2}
+\end{align}
+
+Let \(\rho := m_2/(m_1 + m_2) \). We can rewrite the equations of motion as
+\begin{align}
+\label{eq:dip-dynamics-L-3}
+l_1 \ddot{\phi_1} + \rho l_2 \cos(\phi_1 - \phi_2) \ddot{\phi_2} & = g \sin(\phi_1) \nonumber \\
+& \quad - \rho l_2 \sin(\phi_1 - \phi_2) \dot{\phi_2}^2 \\
+l_1 \cos(\phi_1 - \phi_2) \ddot{\phi_1} + l_2 \ddot{\phi_2} & = g \sin(\phi_2) \nonumber \\
+& \quad + l_2 \sin(\phi_1 - \phi_2) \dot{\phi_1}^2
+\end{align} 
+** Linearized Dynamics with base motion
+When linearized about the vertical equilibrium \(\phi_1^{\star} = \phi_2^{\star} = 0 \), we can set \(\cos(\phi_1 - \phi_2) \approx 1 \), \(\sin(\phi_1 - \phi_2) \approx \phi_1 - \phi_2 \) and neglect the higher order powers of \(\phi_{\cdot} \) and its derivatives. Then
+\begin{align}
+\label{eq:dip-dynamics-linear-MK}
+M_0 & = 
+\begin{bmatrix}
+ (m_{1} + m_{2}) l_{1}^2 &  m_{2} l_{1} l_{2} \\
+ m_{2} l_{1} l_{2} &  m_{2} l_{2}^2
+\end{bmatrix} \\
+K_0 & = \begin{bmatrix}
+-(m_{1} + m_{2}) g l_{1} & 0 \\
+0 & -2 m_{2} g l_{2} 
+\end{bmatrix}
+\end{align}
+and following equation (\ref{eq:euler-lagrange-general-time-dependent-linear}) the equations of motion become
+\begin{align}
+\label{eq:dip-dynamics-linear-1}
+& M_0 \ddot{\phi} + K_0 \phi = 0 \nonumber\\
+& \begin{bmatrix}
+l_{1}^2 & \rho l_{1} l_{2} \\
+\rho l_{1} l_{2} & \rho l_{2}^2
+ \end{bmatrix} \ddot{\phi} - g \begin{bmatrix}
+l_{1} & 0 \\
+0 & \rho l_{2}
+ \end{bmatrix} \phi = 0
+\end{align}
+where
+\begin{align*}
+\rho = \frac{m_2}{m_1 + m_2}.
+\end{align*}
+# In first order form, setting \(\phi_{11} := \phi_1 \), \(\phi_{12} := \dot{\phi}_1 \), \(\phi_{21} := \phi_2 \), \(\phi_{22} := \dot{\phi}_2 \),
+# \begin{small}
+# \begin{align}
+# \label{eq:dip-dynamics-linear-2}
+# \begin{bmatrix} \dot{\phi}_{11} \\
+# \dot{\phi}_{21} \\
+# \dot{\phi}_{12} \\
+# \dot{\phi}_{22} \end{bmatrix} & = \left( \begin{array}{c c:c c}
+# 0 & 0 & 1 & 0 \\
+# 0 & 0 & 0 & 1 \\
+# \hdashline
+# \multicolumn{2}{c:}{\begin{pmatrix} g/l_1 & 0\\ 0 & g/l_2 \end{pmatrix} \begin{pmatrix} 1 & \rho \\ 1 & 1 \end{pmatrix}^{-1}} & \multicolumn{2}{c}{\begin{array}{c c}
+#   0 & 0\\
+#   0 & 0
+# \end{array}}
+# \end{array} \right) \begin{bmatrix} \phi_{11} \\ \phi_{21} \\ \phi_{12} \\ \phi_{22} \end{bmatrix} \\
+# & = \left( \begin{array}{c c: c c}
+#   0 & 0 & 1 & 0 \\ 
+#   0 & 0 & 0 & 1 \\ 
+#  \hdashline
+#   \frac{1}{1-\rho} \frac{g}{l_1} & -\frac{\rho}{1-\rho} \frac{g}{l_1} & 0 & 0 \\
+#  -\frac{1}{1-\rho} \frac{g}{l_2} & \frac{1}{1-\rho} \frac{g}{l_2} & 0 & 0
+# \end{array}
+#  \right) \begin{bmatrix} \phi_{11} \\ \phi_{21} \\ \phi_{12} \\ \phi_{22} \end{bmatrix}
+# \end{align}
+# \end{small}
+Equation (\ref{eq:dip-dynamics-linear-1}) can be generalized to include vertical base motion \(Y(t) \) quite simply by examining the system from a non-inertial frame of reference attached to the base. Then the effective \( \overline{g} = g + \ddot{Y}(t)\), and the equations of motion become
+\begin{align}
+& \begin{bmatrix}
+l_{1}^2 & \rho l_{1} l_{2} \\
+\rho l_{1} l_{2} & \rho l_{2}^2
+ \end{bmatrix} \ddot{\phi} - (g + \ddot{Y}(t)) \begin{bmatrix}
+l_{1} & 0 \\
+0 & \rho l_{2} \end{bmatrix} = 0 ,\ \text{or} \nonumber\\
+& \begin{bmatrix} \ddot{\phi_1} \\ \ddot{\phi_2} \end{bmatrix} = \frac{(g + \ddot{Y}(t))}{1-\rho}  \begin{bmatrix}
+1/l_{1} & -\rho/l_2 \\
+-1/l_1 & 1/l_{2}
+ \end{bmatrix} \begin{bmatrix} \phi_1 \\ \phi_2 \end{bmatrix} \label{eq:dip-dynamics-linear-base-motion}
+\end{align}
+We observe that this the stiffness matrix \(K_\phi \) is the product of a scalar function of time and a matrix-valued function of \(\phi \), and is thus in the separable form (equation \ref{eq:euler-lagrange-separable-linear}) required for the diagonalization of the Euler-Lagrange equations.
+* TODO Root locus based-analysis of the linearized dynamics with base motion :noexport:
+We consider the SISO system from a force input \(u \) on the lower bob to \(\psi_1 \), the angle of the upper bob to the vertical. For this system,
+\begin{align}
+\label{eq:dip-state-space-realization}
+B & = \begin{bmatrix} 0 \\ 0 \\ 1 \\ 0 \end{bmatrix},\quad C = \begin{bmatrix} 0 & 1 & 0 & 0 \end{bmatrix} \\
+D & = 0_{4 \times 4}
+\end{align}
+We can separate the \(A \) matrix into an LTI and a time-varying part, as
+\begin{align}
+\label{eq:dip-state-space-realization-A}
+A = A_0 + a p(t) A_1 := \begin{pmatrix}
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 1 \\
+\frac{2 g }{l} & - \frac{g}{l} & 0 & 0 \\
+- \frac{2 g}{l} & \frac{2 g}{l} & 0 & 0
+\end{pmatrix} + \frac{\ddot{Y}}{l}\begin{pmatrix}
+0 & 0 & 0 & 0 \\
+0 & 0 & 0 & 0 \\
+2 & - 1 & 0 & 0 \\
+- 2 & 2 & 0 & 0
+\end{pmatrix}
+\end{align}
+Where \(A_1 \) is the second matrix above and \(a p(t) = \frac{\ddot{Y}}{l} \). With this formulation, we can represent this system as LTI in feedback with a time-varying gain:
+* Diagonalization of the double inverted pendulum
+\label{sec:dip-diagonalization}
+We analyze this system as a pair of decoupled vibrationally stabilized systems, which allows us to apply the method of section \ref{sec:superimposing-stability-maps} to study the effect of the system parameters on stability. While this method can be applied more generally to the case of multiple links, applying it to the relatively simple case of two links is illuminating.
+
+Equations \ref{eq:dip-dynamics-linear-1} and \ref{eq:dip-dynamics-linear-base-motion} are of the form
+\begin{align*}
+M_0 \ddot{\Phi} = - K_0 \Phi
+\end{align*}
+where \(\Phi = \left[ \begin{smallmatrix} \phi_1 & \phi_2 \end{smallmatrix} \right]^{T}\) and the matrix of spring constants \(K \) may be considered a periodic function of time. This system can be diagonalized into two independent time-parametrically forced oscillators. As such, each subsystem will have a different time-varying spring constant, leading to different vibrational stabilization bands for each in parameter space. We expect the intersection of these bands to be where the system can be stabilized.
+
+#+begin_export latex :exports none
+% \label{eq:dip-linearized-2nd-order}
+Applying this idea to the system
+\begin{align*}
+\begin{bmatrix}
+1 & \rho \gamma \\
+\frac{1}{\gamma} & 1
+ \end{bmatrix} \begin{bmatrix} \ddot{\phi_1} \\ \ddot{\phi_2} \end{bmatrix} = \begin{bmatrix} \frac{g}{l_1} & 0 \\ 0 & \frac{g}{l_2} \end{bmatrix} \begin{bmatrix} \phi_{1} \\ \phi_{2} \end{bmatrix}.
+\end{align*}
+gives
+\begin{align*}
+\begin{bmatrix} \ddot{\phi_1} \\ \ddot{\phi_2} \end{bmatrix} & = \frac{g}{1-\rho} \begin{bmatrix}
+1 & - \rho \gamma \\
+-\frac{1}{\gamma} & 1
+ \end{bmatrix} \begin{bmatrix}
+\frac{1}{l_{1}} & 0 \\
+0 & \frac{1}{l_{2}}
+ \end{bmatrix} \begin{bmatrix} \phi_{1} \\ \phi_{2} \end{bmatrix} \\
+ & = \frac{g}{1-\rho} \begin{bmatrix}
+\frac{1}{l_{1}} & \frac{-\rho}{l_{1}} \\
+-\frac{1}{l_{2}} & \frac{1}{l_{2}}
+ \end{bmatrix} \begin{bmatrix} \phi_{1} \\ \phi_{2} \end{bmatrix}.
+\end{align*}
+#+end_export
+
+* Local setup                                                         :noexport:
+
+* Footnotes
+
+[fn:why-lambda] Note that the \(\lambda_i \) are eigenvalues of \(M_0^{-1} K_0 \) by the properties of the congruence transformation.
+# Local Variables:
+# eval: (add-hook 'org-export-before-processing-hook (lambda (backend) (unless (assoc "autart" (buffer-local-value 'org-latex-classes (current-buffer))) (setq-local org-latex-classes (append '(("autart" "\\documentclass[twocolumn]{autart}" ("\\section{%s}" . "\\section*{%s}") ("\\subsection{%s}" . "\\subsection*{%s}") ("\\subsubsection{%s}" . "\\subsubsection*{%s}") ("\\paragraph{%s}" . "\\paragraph*{%s}") ("\\subparagraph{%s}" . "\\subparagraph*{%s}"))) org-latex-classes)))) nil t)
+# org-refile-targets: ((nil :maxlevel . 3))
+# org-latex-caption-above: nil
+# org-export-with-title: nil
+# eval: (load-file "./publish.el")
+# End:

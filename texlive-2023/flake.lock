@@ -1,0 +1,44 @@
+{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1686331006,
+        "narHash": "sha256-hElRDWUNG655aqF0awu+h5cmDN+I/dQcChRt2tGuGGU=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "85bcb95aa83be667e562e781e9d186c57a07d757",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixos-23.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgsFork": {
+      "locked": {
+        "lastModified": 1680044278,
+        "narHash": "sha256-bp2Jwf1LVVx2IfK4ShnQKo8zcgg4zazEIwNRfmFwcVk=",
+        "owner": "apfelkuchen6",
+        "repo": "nixpkgs",
+        "rev": "7401e71d8c3410063c804cf4fa3975f6e06aa677",
+        "type": "github"
+      },
+      "original": {
+        "owner": "apfelkuchen6",
+        "ref": "texlive-update",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "nixpkgs": "nixpkgs",
+        "nixpkgsFork": "nixpkgsFork"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

@@ -1,0 +1,15 @@
+* Test suite for org latex preview regression
+
+Thrown together testing setup for Org 9.7's =org-latex-preview=, which is inexplicably 40% $slower with TeXLive 2023 compared to TeXLive 2022.
+
+To run:
+
+- Navigate to =texlive-2022/= in a shell and run =nix develop=.
+- Once it's ready, launch Emacs from here. (Or =emacs -q= if necessary)
+- Make sure you can access Org 9.7, install it if necessary.
+- =(load-file "test-olp.el")=  (Sets up utility functions and a local =org-persist-directory=)
+- Open an Org file in =test-org=
+- Precompile in the buffer if you don't want to benchmark precompilation times
+- Run =M-x my-org-latex-preview-benchmark=, bound to =C-c b= in Org.
+- Check =M-x elp-results= or feed =etrace.json= (in the =texlive-2022= dir) to a flame graph analyzer.
+- Repeat all steps in the =texlive-2023= dir.

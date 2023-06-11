@@ -1,0 +1,52 @@
+#+TITLE: LQR Control Of Time-Periodic Systems
+#+AUTHOR: 
+#+DATE:
+#+OPTIONS: h:5 num:t toc:nil
+#+PROPERTY: header-args:matlab :session *MATLAB* :results output :exports both :eval never-export :noweb yes
+#+PROPERTY: header-args:julia :session *Julia* :async yes :exports results :tangle test.jl :eval never-export
+# #+SETUPFILE: https://fniessen.github.io/org-html-themes/setup/theme-readtheorg.setup
+# #+HTML_HEAD: <link rel="stylesheet" type="text/css" href="https://gongzhitaao.org/orgcss/org.css"/>
+#+LATEX_CLASS: article
+#+LATEX_CLASS_OPTIONS: [10pt]
+#+latex_header: \usepackage[margin=1.0in]{geometry}
+#+latex_header: \usepackage{amsthm}
+#+latex_header: \newtheorem{theorem}{Theorem}
+# #+latex_header: \newtheorem
+#+BIBLIOGRAPHY: ~/Documents/roam/biblio.bib
+#+EXCLUDE_TAGS: noexport ignore
+#+STARTUP: hideblocks showall
+
+* Introduction
+
+This report deals with the LQR problem for periodic systems.  The question of interest is variation across the parameter space of the minimum control effort required to stabilize these systems.  A Newton-iteration based approach to solving the problem is covered, and is then applied to two related systems: Mathieu's Equation, which exhibits parametric resonance, and the vibrationally stabilizable linearized Kapitza pendulum.
+
+Section \ref{sec:lqr-time-periodic} states the LQR/LQG problems for time-periodic systems and summarizes results from the literature.  Section \ref{sec:pdre-numerical-solution} details the solution of the associated Differential Riccati Equation using Newton's method.  Section \ref{sec:results} shows the LQR cost for Mathieu's Equation and the linearized Kapitza pendulum as a function of the system parameters.
+
+* The LQR problem for time-periodic systems
+\label{sec:lqr-time-periodic}
+
+The LQR problem for a time-periodic system of the form
+\begin{align}
+\dot{x} = A(t) x + B(t) u, \quad  t \in [0, \infty), \quad x(0) = x_i \label{eq:time-varying-system}\\
+A(t+T) = A(t),\ B(t + T) = B(t) \nonumber
+\end{align}
+is as follows. With a quadratic form defined on \( (x,u) \) pairs
+\begin{align}
+\label{eq:quadratic-form}
+\mathbf{q}(x, u) := \lim_{t_f \to \infty} \int_{0}^{t_f} \begin{bmatrix} x \\ u \end{bmatrix}^{\star} \begin{bmatrix}
+Q & 0 \\
+0 & r
+ \end{bmatrix} \begin{bmatrix} x \\ u \end{bmatrix} =: \lim_{t_f \to \infty} \int_{0}^{t_f} q(x,u) dt
+\end{align}
+with \( q \ge 0 \) and \( r \ge 0 \), find the infimum of the quadratic form \( \mathbf{q} \) subject to the dynamics \eqref{eq:time-varying-system}:
+\[
+\inf_{x,u} \mathbf{q}(x,u).
+\]
+\begin{align}
+\label{eq:lqr-inf-via-duality}
+\inf_{x, u} \mathbf{q}(x, u) = x_i^{\star} \bar{\lambda}(0) x_i,
+\end{align}
+where \( \bar{\lambda} \) is the maximal solution of the differential linear matrix inequality over \( [0, t] \)
+
+#+print_bibliography:
+

@@ -1,0 +1,1069 @@
+#+TITLE: Some title
+#+AUTHOR: Author 1
+#+DATE: 2021:04:29
+#+OPTIONS: h:6 num:t toc:nil
+#+PROPERTY: header-args:matlab :session *MATLAB* :results output :exports both :eval never-export :noweb yes
+#+property: header-args:julia  :session *Julia*  :exports both :eval never-export :async t
+# #+SETUPFILE: https://fniessen.github.io/org-html-themes/setup/theme-readtheorg.setup
+# #+HTML_HEAD: <link rel="stylesheet" type="text/css" href="https://gongzhitaao.org/orgcss/org.css"/>
+#+latex_engraved_theme: ef-light
+#+LATEX_CLASS: autart
+#+LATEX_CLASS_OPTIONS: [twocolumn]
+#+LATEX_HEADER: \input{preamble.tex}
+#+latex_header: \usepackage{float}
+#+EXCLUDE_TAGS: noexport
+#+LATEX: \begin{frontmatter}
+#+LATEX: \title{Some title} 
+#+LATEX: \author[ABCDa]{Author 1}\ead{something}
+#+LATEX: \author[ABCDb]{Author 2}\ead{something}
+#+LATEX: \address[ABCDa]{Some address 1}
+#+LATEX: \address[ABCDb]{Some address 2}
+# #+latex_class: article
+# #+latex_class_options: [10pt]
+#+LATEX_HEADER: \usepackage{cancel}
+#+latex_header: \usepackage{mathtools}
+#+BIBLIOGRAPHY: ~/Documents/roam/biblio.bib
+#+EXCLUDE_TAGS: noexport ignore
+#+STARTUP: showall hideblocks 
+
+\begin{keyword}                           
+averaging control; open-loop control systems; periodic motion, stabilization methods, time-varying systems.   
+\end{keyword}
+
+#+begin_abstract
+Stability maps provide an alternative to the coarser but more general averaging method for open-loop vibrational control of second-order linear systems. This paper applies the technique of vibrational control using stability maps to higher order mechanical systems. Specifically, it is applied to the twin problems of finding stability maps of higher order time-parametric oscillators and of vibrationally stabilizing them around unstable equilibria. For certain types of parametric forcing, a geometric method is developed that overlays scaled versions of the stability maps for individual normal modes. A simple measure for the stabilizability of the system is proposed involving ratios of eigenvalues of the system, referred to as the scaling ratio. This method is applied to the analysis of vibrational stabilization of the muti-link linearized Kapitza pendulum, an inverted pendulum consisting of multiple links driven by vertical base motion. The use of the scaling ratio helps determine the range of parametric forcing parameters for which it can be vibrationally stabilized, as well as how the pendulum's inertial and geometric parameters affect this range.
+#+end_abstract
+
+# This paper studies the problem of stabilizing a multiple link inverted pendulum without feedback. To do this we consider an open-loop periodic input that /vibrationally stabilizes/ the time-periodic system. The standard method to analyze vibrational control involves applying averaging theory to find a stabilizing open-loop periodic input. In recent years a method based on stability maps has been proposed by Berg et al that, while less general than averaging theory, makes available a larger class of lower frequency stabilizing inputs. The stabilization of a multiple link inverted pendulum is a higher-order analogue of this method as applied to the classical example of vibrational control of the vertically forced inverted pendulum. We apply vibrational control to the modes of the linearized multiple link inverted pendulum to obtain conditions on its inertial and kinematic configurations for stability.
+
+#+LATEX: \end{frontmatter}
+
+* Code
+#+NAME: compute-traces 
+#+BEGIN_SRC matlab
+  %% Plot the stability boundaries using the trace of the Monodromy map - UNSTABLE
+
+  %  in the UNSTABLE region
+  N = 100;
+  delta = 2*pi/N;
+
+  damping_coeff=0.0;
+
+  a_num = 100;
+  a_max = 0.5;
+  eps_num = 100;
+  eps_max = 2.5;
+
+  a_range = linspace(0,a_max,a_num); O = a_num;
+  eps_range = linspace(0,eps_max,eps_num); E = eps_num;
+
+  % omega_range = 0.0:omega_max/60:omega_max, O = length(omega_range);
+  % omega_range = 0.0:0.01:1.0, O = length(omega_range);
+  % eps_range = 0:0.01:2.0, E = length(eps_range);
+  % omega_rescaled_range = linspace(0.001,5,100), O = length(omega_rescaled_range);
+  % eps_rescaled_range = linspace(0.001,10,100), E = length(eps_rescaled_range);
+
+  traces = zeros(E,O);
+
+  %----
+  % Sine samples
+  sample_func = @cos;
+  %----
+  % Square samples
+  % sample_func = @square;
+  %----
+  % Ramp samples
+  % sample_func = @sawtooth;
+  %----
+  % Sine harmonics
+  % sample_func = @(x) cos(x) + cos(2*x) + cos(3*x);
+
+  for i=1:O
+      for j=1:E
+          samples = a_range(i) + eps_range(j) * sample_func((0:N-1) * 2*pi/N);
+          traces(j,i) = trace(AA_cumulative(0, N-1, samples, delta,damping_coeff));
+      end
+  end
+
+  %         samples = -1/omega_rescaled_range(i)^2 + ...
+  %             eps_rescaled_range(j)/omega_rescaled_range(i)^2 * sample_func((0:N-1) * 2*pi/N);
+#+END_SRC
+
+#+NAME: plot-stability-boundaries
+#+BEGIN_SRC matlab
+% scaling_factor = 1/(2 - 0.0447);
+
+% Z = abs(traces)>2;
+% Z = double(Z);
+% Z = Z * 1.34;
+% Z(Z == 0) = NaN;
+figure(33);
+%stability_plot = surf(omega_range, eps_range, Z, 'EdgeColor', 'none');
+% stability_plot = mesh(scaling_factor * omega_range.^2, scaling_factor *  eps_range, Z);
+% %stability_plot = mesh(omega_rescaled_range, eps_rescaled_range, Z);
+% view(0,90);
+% % mymap = rand(10,3);
+% mymap = [1 1 1; 0.7 0.7 0.7];
+% colormap(mymap);
+hold on;
+[C, h] = contour( scaling_factor * a_range, scaling_factor * eps_range, traces, [-2.0 2.0]);
+%[C, h] = contour(omega_rescaled_range, eps_rescaled_range, traces, [-2 2]);
+h.LineColor = [r, g, b];
+h.LineWidth = 1.6;
+
+xlabel('$a$');
+ylabel('$\epsilon$');
+% xlabel('\Omega'),ylabel('E');
+% title('Vibrational stabilization of the double-inverted pendulum');
+#+END_SRC
+
+#+NAME: create-mass-matrix
+#+BEGIN_SRC matlab
+function M = create_mass_matrix(size, r)
+%CREATE_MASS_MATRIX Create the mass matrix for an inverted pendulum with SIZE identical masses and links. r is the ratio of the higher to lower mass in the chain of masses.
+    if ~exist('r','var')
+        r = 1.0;
+    end
+
+    M = ones(size,size);
+
+    if r == 1.0
+        for m=1:size-1
+            for k=m+1:size
+                M(m,k) = (size - k + 1)/(size - m + 1);
+            end
+        end
+    else
+        for m=1:size-1
+            for k=m+1:size
+                M(m,k) = r^(k-m) * (1 - r^(size - k + 1))/(1 - r^(size - m + 1));
+            end
+        end
+    end
+
+end
+#+END_SRC
+
+* Introduction
+
+# Certain unstable time-periodic systems can be stabilized by the introduction of parametric forcing of appropriate frequency and amplitude, an open-loop stabilization method referred to as Vibrational Control (or Vibrational Stabilization). Vibrational Control has traditionally been thought of as a high frequency phenomenon \cite{bullo2002averaging,meerkov1980principle} analyzed using averaging methods, but recent work \cite{Berg_2015} has elucidated that it can be achieved with parametric oscillation at lower frequencies and carefully selected amplitudes.
+Time-periodic systems display the twin phenomena of parametric instability (or resonance) and vibrational stabilization. Parametric resonance is the destabilization of a nominally stable system whose parameters are varied time-periodically. This is observed in nature, for example, in Faraday waves on the surface of a fluid in an oscillated container \cite{benjamin1954} or as the Kelvin-Helmholtz instability with time-periodic shear \cite{kelly1965}. Among engineered systems, this phenomenon is observed in axially loaded columns subjected to time-periodic loads \cite{iwatsubo1974}, and in MEMS devices subjected to alternating voltage under appropriate conditions \cite{turner1998}. Parametric resonance is often undesirable, but can be used in favorable ways, such as in low-noise parametric amplifiers such as Varactors and in MEMS mass-sensing devices \cite{zhang2005mass,zhang2005}.
+
+The introduction of parametric forcing can also stabilize a nominally unstable system, a technique referred to as vibrational control (or vibrational stabilization). Vibrational control has traditionally been considered a high frequency phenomenon \cite{meerkov1980principle} and analyzed through the method of dynamical averaging. While very general, averaging theorems typically posit the existence of parameter value thresholds (typically parametric forcing frequencies) above which systems can be vibrationally stabilized. These thresholds are not specified and can be very large, making averaging methods inconvenient for design. Recent work by Berg \cite{Berg_2015} shows that vibrational stabilization can be achieved with parametric oscillation at lower frequencies with carefully selected amplitudes. As applied to a time-periodic second order linear system (such as Hill's equation), a two-dimensional /stability map/ obtained through classical methods such as Floquet theory can be used to identify stabilizing inputs. Stability maps of second-order linear systems have been used in the design of quadrupole ion traps \cite{douglas2009linear,lee2003stability}. In addition to providing more comprehensive predictions than those of averaging theory, this method has the advantage of unifying the analysis of parametric resonance and vibrational stabilization as different aspects of the same phenomenon.
+
+This paper extends the stability map based analysis of parametric resonance and vibrational stabilization to higher order linear mechanical systems. For certain types of parametric forcing, we obtain a simple geometric criterion for stability involving different scalings of the stability maps of the modes of the system, each of which obeys a version of the second-order Hill's equation. As opposed to applying the general Floquet theory, this method of overlapping maps has the advantage of providing a simple geometric measure and design criterion for the stabilizability of the system in terms of its normal modes. Information not provided by averaging methods, such as upper limits on parameter ranges for the stability of individual modes, turns out to be crucial for the stablility of the system as a whole.
+
+The canonical example of a system that can be vibrationally stabilized is the Kapitza pendulum \cite{nayfeh1995}, an inverted pendulum with vertical sinusoidal forcing applied to its base. This system has been studied using the classical Floquet theory and stability maps for second-order linear systems \cite{Berg_2015} as well as higher order averaging methods \cite{maggia2019}. As an application of the overlapping maps method, this paper analyzes the higher order system of a linearized Kapitza pendulum with multiple links. The geometric properties of the composite stability map allows us to predict the range of parametric forcing parameters that vibrationally stabilize the system, as well as how the system's inertial and kinematic properties affect this range.
+
+The rest of the paper is organized as follows: Section \ref{sec:euler-lagrange-general} derives the general equations of motion for a mechanical system in terms of its mass and time-varying stiffness matrices. Section \ref{sec:stabilizing-euler-lagrange-general} investigates the conditions under which its linearization can be diagonalized. This form provides the basis for extending the stability map technique for second order systems, reviewed in section \ref{sec:kapitza-review}, to higher order systems in section \ref{sec:superimposing-stability-maps}. Sections \ref{sec:double-inverted-pendulum-model} and \ref{sec:dip-diagonalization} apply this stability analysis to the example of a double inverted pendulum driven by periodic vertical base motion, and section \ref{sec:nip} extends this to the general case of \(N \) links. Insights about the stabilizability of this system through open-loop vibrational control are noted in section \ref{sec:nip-observations}. Finally, section \ref{sec:conclusion} presents directions for future work.
+
+* The Euler-Lagrange equations \( D \left( \partial_2 L \circ \Gamma[q] \right) - \partial_1 L \circ \Gamma[q] = 0 \)
+\label{sec:euler-lagrange-general}
+We consider a general \(n \)-DOF mechanical spring-mass system with state \(q \in \mathbb{R}^{n} \) and 
+Lagrangian
+\begin{align}
+\label{eq:lagrangian-general}
+L(q, p) & = \frac{1}{2} p^{\star} M_{q} p - \frac{1}{2} q^{\star} K_{q} q \\
+ & =: T(q, p) - V(q) \nonumber \\
+ q, p & \in \mathbb{R}^n,\quad M_{q}, K_{q} \in \mathbb{R}^{n \times n} \nonumber
+\end{align}
+where \(p := \dot{q} \) is the generalized velocity, and \(M_{q} \) and \(K_{q} \) are (real and symmetric) state-dependent generalized mass and stiffness matrices respectively. Such a formulation describes, for instance, the multiple link inverted pendulum that we investigate in section \ref{sec:dip-diagonalization}. In this section we derive the general equations of motion for this system.
+
+To aid in the tensorial representation of quantities we need, we will consider derivatives as row operators:
+\begin{equation}
+\label{eq:ddq-operator-def}
+\frac{\partial }{\partial q} := \begin{bmatrix} \frac{\partial }{\partial q_{1}} & \frac{\partial }{\partial q_{2}} & \dots & \frac{\partial }{\partial q_{n}} \end{bmatrix},
+\end{equation}
+so that \(\frac{\partial L}{\partial q} : \mathbb{R}^{n} \to \mathbb{R} \) is a linear functional on \(\mathbb{R}^{n} \), and for a vector valued function \(f(q) \) such that \(f:\mathbb{R}^{n} \to \mathbb{R}^{m}\),
+\begin{equation*}
+\frac{\partial f}{\partial q} := \begin{bmatrix} \frac{\partial f}{\partial q_{1}} & \frac{\partial f}{\partial q_{2}} & \dots & \frac{\partial f}{\partial q_{n}}  \end{bmatrix}
+\end{equation*}
+is the Jacobian of \(f \).
+
+We will consider the directional derivative in the direction \(v \in \mathbb{R}^{n}\) produced by the action of derivatives \(\frac{\partial }{\partial q}  \) and \(\frac{\partial }{\partial p}  \), denoted by \(\left( \frac{\partial \cdot}{\partial q} [v] \right) \):
+\begin{align}
+\frac{\partial L}{\partial p} [v] & = \frac{\partial T}{\partial p} [v] = \frac{1}{2} \left( [v]^{\star} M_q p + p^{\star} M_q [v] \right) \nonumber\\
+& = p^{\star} M_{q} [v]\nonumber \\
+\frac{\mathrm{d} }{\mathrm{d} t} \left( \frac{\partial L}{\partial p} \right) [v] & = \frac{\mathrm{d} }{\mathrm{d} t} \left( p^{\star} M_{q} \right) [v] \nonumber \\
+& = \dot{p}^{\star} M_{q} [v] + p^{\star} \partial_q M_{q} \left( \frac{\mathrm{d} q}{\mathrm{d} t} \right)\ [v] \nonumber \\
+& = \dot{p}^{\star} M_{q} [v] + p^{\star} \partial_q M_{q} (p)\ [v] \label{eq:dLdp-general}
+\end{align}
+Note that \(\partial_q M_{q}: \mathbb{R}^{n} \to \mathbb{R}^{n \times n} \) is a linear operator from \(\mathbb{R}^{n} \) to the space of \(n \times n \) matrices, and thus a third order tensor. We denote its action on \(p \) as \(\partial_q M_{q}(p) \in \mathbb{R}^{n \times n}\).
+
+Similarly,
+\begin{align}
+  \label{eq:dLdq-general} 
+  \frac{\partial L}{\partial q} [v] & = \frac{1}{2} \frac{\partial }{\partial q}  (p^{\star} M_{q} p) [v] - \frac{1}{2} \frac{\partial }{\partial q} \left( q^{\star} K_{q} q \right) [v] \nonumber\\
+  = & \frac{1}{2} p^{\star} \partial_q M_{q}(v)\ p - \frac{1}{2} q^{\star} \partial_q K_{q}(v)\ q \nonumber \\
+  \ & - q^{\star} K_{q} [v]
+%  = & \frac{1}{2} p^{\star} \left( \frac{\partial }{\partial q} \otimes M_{q} \right) \left(p \otimes I \right) \nonumber \\
+%  & - \frac{1}{2} q^{\star} \left( \frac{\partial }{\partial q} \otimes  K_{q}\right) \left( q \otimes I \right) - q^{\star} \sym{K_{q}} 
+\end{align}
+
+The Euler-Lagrange equations are
+\begin{align}
+\label{eq:euler-lagrange-general}
+\frac{\mathrm{d} }{\mathrm{d} t} \left( \frac{\partial L}{\partial p}  \right) [v] - \frac{\partial L}{\partial q} [v] = F^{\star} [v]
+\end{align}
+where \(F \) is the vector of generalized external forces on the system. From equations \ref{eq:dLdp-general}, \ref{eq:dLdq-general}, we get
+\begin{align}
+\label{eq:euler-lagrange-general-2}
+& (\dot{p}^{\star} M_{q}  + q^{\star} K_{q} - F^{\star}) [v] \nonumber\\
+& = - p^{\star} \partial_q M_{q}(p) [v] + \frac{1}{2} p^{\star} \partial_q M_{q}(v)\ p \nonumber \\
+\ & - \frac{1}{2} q^{\star} \partial_q K_{q}(v)\ q
+% & = - \frac{1}{2} p^{\star} \left( \frac{\partial }{\partial q} \otimes M^{\star}_{q} \right) \left( p \otimes I \right) \nonumber \\
+% & \quad - \frac{1}{2} q^{\star} \left( \frac{\partial }{\partial q} \otimes K_{q} \right) \left( q \otimes I \right)
+\end{align}
+
+We can write the action of the derivative \(\partial_q M_{q} \) on \(v \) in matrix notation as follows:
+\begin{equation}
+\label{eq:tensor-action-as-matrix}
+\underbrace{\partial_q M_{q}(v)}_{n \times n} =  \underbrace{\left(\frac{\partial }{\partial q} \otimes M_{q}\right)}_{n \times n^2}  \underbrace{\left(v \otimes I_{n \times n}\right)}_{n^2 \times n}
+\end{equation}
+and the Euler-Lagrange equations are
+\begin{align}
+\label{eq:euler-lagrange-general-3}
+& (\dot{p}^{\star} M_{q}  + q^{\star} K_{q} - F^{\star}) [v] = \nonumber\\
+\ & - p^{\star} \left( \frac{\partial }{\partial q} \otimes M_{q} \right) \left(p \otimes I\right) [v] \nonumber \\
+\ & + \frac{1}{2} p^{\star} \left( \frac{\partial }{\partial q} \otimes M_{q} \right) \left(v \otimes I\right)\ p \nonumber\\
+\ & - \frac{1}{2} q^{\star} \left( \frac{\partial }{\partial q} \otimes K_{q} \right) \left(v \otimes I\right)\ q
+\end{align}
+We can write the \(i^{th} \) equation explicitly by setting \(v = e_i \), the \(i^{th} \) canonical basis vector, giving us
+\begin{align}
+\label{eq:euler-lagrange-general-4}
+& \left(M_{q} \dot{p}\right)_i + \left( K_{q} q \right)_i - f_i = \nonumber \\
+& \sum\limits_{l=1}^n \sum\limits_{k=1}^n \left( \frac{1}{2} \frac{\partial M_{l, k}}{\partial q_i} - \frac{\partial M_{l, i}}{\partial q_{k}} \right) p_l p_k \nonumber \\
+& - \frac{1}{2} \sum\limits_{l=1}^n \sum\limits_{k=1}^n \frac{\partial K_{l,k}}{\partial q_{i}} q_l q_k, \quad i=1, \dots, n
+\end{align}
+#+begin_export latex :exports none
+\begin{equation}
+\label{eq:dLdp-general}
+\frac{\mathrm{d} }{\mathrm{d} t}\frac{\partial L}{\partial p} = \dot{p}^{\star} \sym{M_{q}} + p^{\star} \left( \frac{\partial }{\partial q} \otimes \sym M_{q} \right) \left( p \otimes I \right)
+\end{equation}
+#+end_export
+
+** Extension to time-dependent stiffness matrices
+The effect of time-dependent parametric forcing, as in the case of vibrational stabilization, can be handled easily in the formulation of equation (\ref{eq:euler-lagrange-general-2}). With a stiffness matrix \(K_{q}(t) \) that depends explicitly on time, \(\frac{\mathrm{d} }{\mathrm{d} t} \frac{\partial L}{\partial p}  \) is unchanged, as is \(\frac{\partial L}{\partial q}  \). This gives the Euler-Lagrange equations as
+\begin{align}
+\label{eq:euler-lagrange-general-time-dependent}
+& (\dot{p}^{\star} M_{q} + q^{\star} K_q(t) - F^{\star}) [v] = \nonumber\\
+\ &  - p^{\star} \partial_q M_{q}(p) [v] + \frac{1}{2} p^{\star} \partial_q M_{q}(v)\ p \nonumber \\
+\ & - \frac{1}{2} q^{\star} \partial_q K_q(t)(v)\ q
+\end{align}
+* Diagonalizing the linearized Euler-Lagrange equations 
+\label{sec:stabilizing-euler-lagrange-general}
+To investigate vibrational stabilization, we consider the linearization of equation (\ref{eq:euler-lagrange-general-time-dependent}) about an equilibrium point. Without loss of generality, we may assume the equilibrium at \((q, p) = (0, 0)\). Assuming \(M \) and \(K \) are analytic in \(q \) at \(0 \), we can ignore terms on the right hand side of the equation that are \(\mathcal{O}(q^2) \), \(\mathcal{O}(p^2) \) or larger. This gives the simple linearization
+\begin{align}
+\label{eq:euler-lagrange-general-time-dependent-linear}
+% M(\bar{q)} \dot{p} + K(\bar{q,t)} q - F = - \frac{1}{2} \left( \bar{q}^{\star} \otimes I \right) \left.\left( \left( \frac{\partial }{\partial q}  \right)^{\star} \otimes K^{\star}(q, t) \right)\rvert_{\bar{q}} \bar{q}
+M_0 \ddot{q} + K_0(t) q - F = 0
+\end{align}
+where we have written the equations of motion in the standard column-vector (contravariant) form and used \(\dot{p} = \ddot{q} \). Since \(M_0 \) and \(K_0(t) \) are real and symmetric, there is a congruence transformation that simultaneously diagonalizes them for any \(t \). This transformation is time-dependent in general and thus cannot be used to find the modes of \ref{eq:euler-lagrange-general-time-dependent-linear}. However, the separable case  \(K_q(t) = f(t) K_{q}\) where \(f(t) \) is a scalar remains amenable to diagonalization. This is the case when, for example, the the same time-varying body force acts as a restoring force on all elements of the system. This example is expanded upon in section \ref{sec:double-inverted-pendulum-model}. Under this condition we can find a transformation \(T \) such that
+\begin{align}
+& M_0 \ddot{q} + f(t) K_0 q - F = 0 \label{eq:euler-lagrange-separable-linear}\\
+& T^{\star} M_0 T = \hat{m}, \quad \hat{m} = \mathtt{diag}\left(  m_1, \dots, m_n  \right)\label{eq:diagonalization-general}\\
+& T^{\star} f(t) K_0 T = f(t) \hat{k}, \quad  \hat{k} = \mathtt{diag}\left(  k_1, \dots,  k_n  \right)\\
+& q(t) =: T \theta(t).
+\end{align}
+The equations of motion in the \(\theta(t) \) coordinates are then decoupled:
+\begin{align}
+\label{eq:euler-lagrange-general-diagonalized}
+m_i \ddot{\theta}_i(t) + f(t) k_i \theta_i(t) = (T^{\star} F)_i ,\quad i=1, \dots, n
+\end{align}
+
+Under this condition, we can now relate the time-parametric properties of the individual systems in \ref{eq:euler-lagrange-general-diagonalized} to that of the original linearized system \ref{eq:euler-lagrange-general-time-dependent-linear}. In particular, we are interested in the vibrational stabilizability of the original system at the equilibrium point when \(f(t) \) is periodic. Then each system in \ref{eq:euler-lagrange-general-diagonalized} is a Hill ODE whose stability properties have been extensively studied.
+
+* The stability map for Hill's equation
+\label{sec:kapitza-review}
+#+begin_export latex
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=0.75\columnwidth]{figures/vib_stab_vs_averaging.png}}
+\caption[]{\footnotesize \label{fig:vib-stab-vs-averaging} Vibrational stabilization of Mathieu's equation as a function of the parameters \((a, \epsilon) \) from equation (\ref{eq:hill-ode-standard-form}). Lower curve, in red: the threshold predicted by first order averaging above which the system can be stabilized. The averaging threshold is increasingly close to the actual threshold as \(a \to 0 \). Upper band, in green: The range of \((a,\epsilon) \) for which the system is vibrationally stabilized. Averaging does not predict the upper boundary of stability, a crucial aspect of the stability analysis of the higher order system in section \ref{sec:stabilizing-euler-lagrange-general}.}
+\end{figure}
+#+end_export
+
+In this section we briefly review the behavior of Hill's equation \cite{magnus2013hill} in different parametric forcing regimes and its stability analysis, including results from averaging theory.
+
+Since the parametric forcing \(f(t) \) is periodic, we may write it as a Fourier series
+\begin{align}
+\label{eq:hill-ode-fourier}
+f(t) & = a + \sum\limits_{n=1}^{\infty} \cos(n \omega t) + \sum\limits_{n=1}^{\infty} \sin(n \omega t) \\
+& =: a + \epsilon \tilde{f}(\omega t)
+\end{align}
+where \(\omega = 2 \pi/T \) and \(\tilde{f}(t) \) has zero mean. Then Hill's equation is
+\begin{align}
+\label{eq:hill-ode-standard-form}
+\ddot{\theta}(t) + \left( a + \epsilon \tilde{f}(\omega t) \right) \theta(t) = 0
+\end{align}
+Given \(\tilde{f} \), the stability of Hill's equation can be then visualized using a stability map in the \(a, \epsilon \) space. Note that we can set \(\omega = 1 \) without loss of generality by rescaling time. This scales \(a \to a/\omega^2 \), so that the limit \(\omega \to \infty \) corresponds to \(a \to 0 \).
+
+The stability map of system \ref{eq:hill-ode-standard-form} in the \((a,\epsilon) \) space can be computed in several equivalent ways, such as by using Hill's infinite determinant, the system's Floquet\cite{nayfeh1995} multipliers or by finding the eigenvalues of the monodromy (or return) map of the system as a function of \(a \) and \(\epsilon \). The latter method works as follows: Since the generator for Hill's equation is Hamiltonian, the state transition matrix \(\Phi_t = \Phi(t,0) \) of the system is symplectic. Or equivalently,
+\begin{align*}
+\frac{\mathrm{d} }{\mathrm{d} t} \det{\Phi_t} & = \det{\Phi_t} \tr \left( \dot{\Phi}_t \Phi_t^{-1} \right) \\
+& = \det{\Phi_t} \tr \left( \left[ \begin{smallmatrix} 0 & 1 \\ - a - \epsilon \tilde{f}(t) & 0 \end{smallmatrix} \right] \Phi_t \Phi_t^{-1} \right) \\
+& = \det{\Phi_t} \tr \left[ \begin{smallmatrix} 0 & 1 \\ - a - \epsilon \tilde{f}(t) & 0 \end{smallmatrix} \right] = 0
+\end{align*}
+so that \(\det \Phi(t,0) = 1 \) for all \(t \). The eigenvalues are either both on the unit circle or on opposite sides of it. The system is thus stable when both eigenvalues of \(\Phi \) are on the unit circle (\(\abs{\tr(\Phi)} \le 2 \)) and unstable otherwise.
+
+When \(f(t) = a + \epsilon \cos(t) \) equation (\ref{eq:hill-ode-standard-form}) becomes Mathieu's equation, for which the stability diagram in the \((a,\epsilon) \) parameter space involves the well Known Arnold tongues (Figure \ref{fig:arnold-tongues}). Here \(a \) is the square of the nominal ``natural frequency'' of the system, and \(\epsilon \) is the strength of the variation in parametric forcing.
+
+#+begin_export latex
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=0.9\columnwidth]{figures/arnold_tongues.png}}
+\caption[]{\footnotesize \label{fig:arnold-tongues} The stability diagram for the parametrically forced Mathieu's Equation. In the space of the parameters $a$ and $\epsilon$, we see regions of instability (gray) corresponding to the Arnold tongues, as well as a stable region for the nominally unstable system corresponding to $a < 0$. The two related phenomena are commonly referred to as parametric resonance and vibrational stabilization, respectively.}
+\end{figure}
+#+end_export
+
+We differentiate between the two cases \(a \lessgtr 0 \). When \(a > 0\), the system is nominally (in the absence of parametric forcing) a simple harmonic oscillator and neutrally stable. The addition of parametric forcing can destabilize the system through /parametric resonance/, leading to structures like the Arnold tongues (Figure \ref{fig:arnold-tongues}) in the \((a, \epsilon) \) plane. When \(a < 0 \), it is a nominally unstable second order system, akin to a linearized inverted pendulum. The right choice of parametric forcing can stabilize the system, a phenomenon we refer to as /vibrational stabilization/. The method of overlapping stability diagrams detailed in section \ref{sec:superimposing-stability-maps} for separable stiffness matrices (\(K_q(t) = f(t) K_q \)) works in both regimes, but we focus on the latter case here.
+# Para here focusing on vibrational stabilization
+
+Vibrational stabilization has traditionally been analyzed using the method of dynamical averaging. It is illustrative to compare it with the stability map method. The averaging theorem guarantees the existence of a threshold, represented as a curve in the \(a, \epsilon \) space above which an the system can be stabilized for some \(\epsilon \). For Mathieu's equation, this condition is \(- a - \epsilon^2/2 < 0 \) or \(\epsilon > \sqrt{-2 a} \). This is shown as the lower (red) line in figure \ref{fig:vib-stab-vs-averaging}. As \(a \to 0 \) (corresponding to high frequency parametric excitation) the threshold approaches the lower limit of the band of stability. However, the averaging method does not yield any insight on the upper limit on \(\epsilon \) for stability. This limit is critical when considering the stability of the higher order system \ref{eq:euler-lagrange-general-time-dependent-linear} using overlapping stability plots of its normal modes, as we will see in the next section.
+
+* Superimposing stability maps
+\label{sec:superimposing-stability-maps}
+In this section we connect the stability of the general linearized system in \ref{eq:euler-lagrange-general-diagonalized} to that of the second order Hill ODE and apply it to the special case of Mathieu's equation. In doing so we obtain a simple geometric interpretation of the stability of the higher order system in terms of stability maps of Hill's equation:
+\begin{equation}
+\label{eq:hill-ode}
+\ddot{\theta}(t) + f(t) \theta(t) = 0,\ f(t + T) = f(t)
+\end{equation}
+
+The key observation is that each of the modes of system \ref{eq:euler-lagrange-general-diagonalized} (without external forces) has a stability diagram that is a scaled version of the stability diagram for Hill's equation (\ref{eq:hill-ode}), since
+\begin{equation}
+\label{eq:hill-odes-scaled}
+\ddot{\theta}_i(t) + \frac{k_i}{m_i} f(t) \theta_i = 0,\quad i=1, \dots, n
+\end{equation}
+Given \(f(t) \), the original system is thus stable where all \(n \) stability diagrams corresponding to the parametric forcing functions \(k_i/m_i f(t) \) are stable. With \(f(t) = a + \epsilon \tilde{f}(t) \) as before,
+\begin{equation*}
+\frac{k_i}{m_i} f(t) = \left( \frac{k_i}{m_i} a \right) + \left( \frac{k_i}{m_i} \epsilon \right) \tilde{f}(t),
+\end{equation*}
+so \(a \) and \(\epsilon \) are both scaled proportionally for each normal mode. The region of stability of the full system is thus obtained as the intersection of the stable regions for \(n \) copies of the stability diagram for \((a,\epsilon) \), each scaled by \(k_i/m_i \). This gives us a simple geometric way to characterize the stability of system \ref{eq:euler-lagrange-general-diagonalized}.
+
+ # Figures \ref{fig:dip-vibrational-stabilization-zoomed-shaded} and \ref{fig:dip-vibrational-stabilization-same-zoomed-shaded} show this for different configurations of a fourth order mechanical system.
+
+# para on what this means for the ratio of max/min eigenvalues of \(M^{-1} K \)
+Let \(\lambda_i = k_i/m_i \), with \(\lambda_{max} = \max \left\{ k_{i}/m_{i};\ i = 1, \dots, n \right\} \) and \(\lambda_{min} \) defined similarly.[fn:why-lambda] Then the /scaling ratio/ \(\lambda_{max}/\lambda_{min} \) is a measure of the degree of overlap between the stability diagrams for the \(n \) normal modes. For Mathieu's equation, figures \ref{fig:overlap-par-res} and \ref{fig:overlap-vib-stab} show the overlap for different scaling ratios. In the parametric resonance regime (\(a \ge 0 \)), overlapping stability diagrams for the different modes has the effect of introducing additional tongue structures to the picture (figure \ref{fig:overlap-par-res}). The picture is qualitatively similar to that of the scalar Mathieu's equation for ratios close to \(1 \), but the range of stabilizing parameters decreases and the system becomes easier to destabilize with increasing scaling ratio. For the purpose of actively destabilizing systems using parametric resonance, all but the first tongue for each mode (at \(k_i/m_i a = 1/2 \)) are generally inaccessible at low amplitudes \(\epsilon \) due to damping, so we are primarily concerned with the picture containing the combination of the first tongue for all modes.
+
+In the vibrationally stabilized regime (\(a < 0 \)), overlapping the stability diagrams for different modes has the effect of shrinking the range of parameters which can stabilize the system (figure \ref{fig:overlap-vib-stab}). For scaling ratios \(\lambda_{max}/\lambda_{min}\) close to \(1 \), the behavior is qualitatively similar to that of the scalar Mathieu's equation. However, the stable region shrinks rapidly with increasing stability ratio. The upper limit on stabilizing amplitudes \(\epsilon \) (that the method of averaging does not predict) is a critical factor in the degree of overlap between the stable regions for the modes.
+
+The scaling method thus lets us use the parametric stability diagram for Hill's equation (equation (\ref{eq:hill-ode})) to determine that of higher order systems with similar forcing (equation (\ref{eq:euler-lagrange-separable-linear})) through a simple geometric method. The maximum ratio \(\lambda_{max}/\lambda_{min} \) of the mode scaling parameters \(k_i/m_i \) provides a numerical measure of the system's stabilizability, or the range of system parameters over which the system remains stable. In the following sections we apply this idea to an inverted pendulum with multiple links and investigate how the system's parameters relate to its stabilizability through parametric forcing.
+# Plot showing this for parametric resonance and vibrational stabilization for different overlaps (4 part graph)
+#+begin_export latex
+\begin{figure}[ht]
+  \centering
+  \subfloat[\(\lambda_{max}/\lambda_{min} = 1.25\)]{\includegraphics[width=0.8\columnwidth]{figures/overlap-125-parametric-resonance.png}}\\
+  \subfloat[\(\lambda_{max}/\lambda_{min} = 3.0\)]{\includegraphics[width=0.8\columnwidth]{figures/overlap-300-parametric-resonance.png}}
+  \caption{\footnotesize \label{fig:overlap-par-res} Plots of the stability diagrams in the parametric resonance regime of \((a,\epsilon) \) space for systems of the form \ref{eq:hill-odes-scaled} with \(f(t) = a + \epsilon \cos(t) \) (Mathieu's equation). At least one mode is unstable in the gray areas. The two plots are for different scaling factors \(\lambda_{max}/\lambda_{min} \). For ratios close to \(1 \), the stability diagram is qualitatively unchanged from that of Mathieu's equation. For larger ratios, we see additional Arnold tongues and a smaller overall range of parameters where the system remains stable.}
+\end{figure}
+#+end_export
+
+#+begin_export latex
+\begin{figure}[ht]
+  \centering
+  \subfloat[\(\lambda_{max}/\lambda_{min} = 1.25\)]{\includegraphics[width=0.8\columnwidth]{figures/overlap-125-vibrational-stabilization.png}}\\
+  \subfloat[\(\lambda_{max}/\lambda_{min} = 3.0\)]{\includegraphics[width=0.8\columnwidth]{figures/overlap-300-vibrational-stabilization.png}}
+  \caption{\footnotesize \label{fig:overlap-vib-stab} Plots of the stability daigrams in the vibrational stabilization regime of \((a, \epsilon) \) space for systems of the form \ref{eq:hill-odes-scaled} with \(f(t) = a + \epsilon \cos(t) \) (Mathieu's equation). At least one mode is unstable in the gray areas. The two plots are for different scaling factors \(\lambda_{max}/\lambda_{min} \). For ratios close to \(1 \), there is considerable overlap between the stable regions for the different modes. For larger ratios, the range of parameters where the system can be vibrationally stabilized rapidly shrinks.}
+\end{figure}
+#+end_export
+
+
+* The double inverted pendulum model
+\label{sec:double-inverted-pendulum-model}
+#+begin_export latex
+\begin{figure}
+    \centering
+    \def\svgwidth{0.5\columnwidth}
+    \import{./figures/}{double-pendulum.pdf_tex}
+    \caption{\footnotesize \label{fig:double-pendulum} The double inverted pendulum model consisting of masses \(m_1 \) and \(m_2 \) and links of length \(l_1 \) and \(l_2 \). The angles from the vertical are \(\phi_1 \) and \(\phi_2 \) respectively. The base moves vertically according to \(Y(t) \).}
+\end{figure}
+#+end_export
+
+In this section we consider a model of an inverted pendulum with two links subjected to vertical base motion. We derive the equations of motion and linearize it about the vertical equilibrium point before adding in the effect of base motion. In section \ref{sec:dip-diagonalization} we will formulate and apply our vibrational stabilization criteria to this model. The more general case of multiple links is covered from section \ref{sec:nip} onwards.
+
+Our double inverted pendulum consists of massless links of length \(l_1, l_2 \) and masses \(m_1, m_2 \) respectively. The links are free to pivot in the plane of Figure \ref{fig:double-pendulum}, and the angles from the vertical to the two links are \( \phi_1\) and \(\phi_2 \) respectively, with \(\phi = \begin{bmatrix} \phi_{1} &  \phi_{2} \end{bmatrix}^{T} \). In the following we derive the equations of motion for this system using the Euler-Lagrange equations.
+
+** Kinematics
+With the origin at the lower pivot, the positions of the masses are given in cartesian coordinates by:
+\begin{align*}
+x_1, y_1 &= l_1 \sin(\phi_1), l_1 \cos(\phi_1) \\
+x_2, y_2 &= l_1 \sin(\phi_1) + l_2 \sin(\phi_2), l_1 \cos(\phi_1) + l_2 \cos(\phi_2)
+\end{align*}
+With corresponding velocity components
+\begin{align}
+\label{eq:dip-kinematics-velocity}
+\dot{x}_1, \dot{y}_1 & = l_1 \cos(\phi_1) \dot{\phi_1}, - l_1 \sin(\phi_1) \dot{\phi_1} \\
+\dot{x}_2, \dot{y}_2 & = l_1 \cos(\phi_1) \dot{\phi_1} + l_2 \cos(\phi_2) \dot{\phi_2}, \nonumber\\
+ & - l_1 \sin(\phi_1) \dot{\phi_1} - l_2 \sin(\phi_2) \dot{\phi_2} 
+\end{align}
+** Dynamics
+The kinetic energy of the system is
+\begin{align}
+\label{eq:dip-dynamics-T}
+& T(\phi, \dot{\phi}) = \frac{1}{2} m_1 (\dot{x}_1^2 + \dot{y}_1^2) + \frac{1}{2} m_2 (\dot{x}_2^2 + \dot{y}_2^2) \nonumber \\
+& = \frac{1}{2} (m_1 + m_2) l_1^2 \dot{\phi_1}^2 + \frac{1}{2} m_2 l_2^2 \dot{\phi_2}^2 \nonumber \\
+& + m_2 l_1 l_2 \cos(\phi_1 - \phi_2) \dot{\phi_1} \dot{\phi_2} \nonumber \\
+& = \frac{1}{2} \dot{\phi}^{T} \left[ \begin{smallmatrix}
+ (m_{1} + m_{2}) l_{1}^2 &  m_{2} l_{1} l_{2} \cos(\phi_1 - \phi_2) \\
+ m_{2} l_{1} l_{2} \cos(\phi_1 - \phi_2) &  m_{2} l_{2}^2
+ \end{smallmatrix} \right] \dot{\phi} \nonumber \\
+& =: \frac{1}{2} \dot{\phi}^{T} M_\phi\ \dot{\phi}
+\end{align}
+and the potential energy (with datum at the fully extended position)
+\begin{align}
+\label{eq:dip-dynamics-V}
+V(\phi) & = - (m_1 + m_2) g l_1 (1 - \cos(\phi_1)) - m_2 g l_2 (1 - \cos(\phi_2)) \nonumber \\
+& = \frac{1}{2} \phi^{T} \left[\begin{smallmatrix}
+-2 (m_{1} + m_{2}) g l_{1} \frac{1 - \cos(\phi_1)}{\phi_1^2} & 0 \\
+0 & - 2 m_{2} g l_{2} \frac{1 - \cos(\phi_2)}{\phi_2^2}
+ \end{smallmatrix}\right] \phi \nonumber \\
+ & =: \frac{1}{2} \phi^{T} K_\phi\ \phi
+\end{align}
+Following equation (\ref{eq:euler-lagrange-general-4}), the Euler-Lagrange equations are: 
+\begin{align}
+\label{eq:dip-euler-lagrange-general}
+& \left(M_{\phi} {\ddot{\phi}}\right)_i + \left( K_{\phi} \phi \right)_i = \nonumber \\
+& \sum\limits_{l=1}^2 \sum\limits_{k=1}^2 \left( \frac{1}{2} \frac{\partial M_{\phi\ l, k}}{\partial \phi_i} - \frac{\partial M_{\phi\ l, i}}{\partial \phi_{k}} \right) \dot{\phi}_l \dot{\phi}_k \nonumber \\
+& - \frac{1}{2} \sum\limits_{l=1}^2 \sum\limits_{k=1}^2 \frac{\partial K_{\phi\ l,k}}{\partial \phi_{i}} \phi_l \phi_k, \quad i=1, 2
+\end{align}
+or
+# The Lagrangian of the system \(L = T - V \), and we have
+# \begin{align}
+# \label{eq:dip-dynamics-L-1}
+# \frac{\partial L}{\partial \dot{\phi_1}} & = (m_1 + m_2) l_1^2 \dot{\phi_1} + m_2 l_1 l_2 \cos(\phi_1 - \phi_2) \dot{\phi_2}\\
+# \frac{\partial L}{\partial \dot{\phi_2}} & =  m_2 l_2^2 \dot{\phi_2} + m_2 l_1 l_2 \cos(\phi_1 - \phi_2) \dot{\phi_1} \\
+# \frac{\partial L}{\partial \phi_1} & = (m_1 + m_2) g l_1 \sin(\phi_1) \nonumber\\
+# & - m_2 l_1 l_2 \sin(\phi_1 - \phi_2) \dot{\phi_1} \dot{\phi_2} \\
+# \frac{\partial L}{\partial \phi_2} & = m_2 g l_2 \sin(\phi_2) + m_2 l_1 l_2 \sin(\phi_1 - \phi_2) \dot{\phi_1} \dot{\phi_2}
+# \end{align}
+# And the Euler-Lagrange equations are:
+\begin{align}
+\label{eq:dip-dynamics-L-2}
+%&\frac{\mathrm{d} }{\mathrm{d} t} \frac{\partial L}{\partial \dot{\phi_1}} = \frac{\partial L}{\partial \phi_1} \nonumber\\
+&(m_1 + m_2) l_1^2 \ddot{\phi_1} + \nonumber \\
+& m_2 l_1 l_2 \left( \cos(\phi_1 - \phi_2) \ddot{\phi_2} - \sin(\phi_1 - \phi_2) (\dot{\phi_1} - \dot{\phi_2}) \dot{\phi_2} \right) \nonumber\\
+& = (m_1 + m_2) g l_1 \sin(\phi_1) - m_2 l_1 l_2 \sin(\phi_1 - \phi_2) \dot{\phi_1} \dot{\phi_2} \\
+%&\frac{\mathrm{d} }{\mathrm{d} t} \frac{\partial L}{\partial \dot{\phi_2}} = \frac{\partial L}{\partial \phi_2} \nonumber\\
+&m_2 l_2^2 \ddot{\phi_2} + \nonumber\\
+& m_2 l_1 l_2 ( \cos(\phi_1 - \phi_2) \ddot{\phi_1} - \sin(\phi_1 - \phi_2) (\dot{\phi_1} - \dot{\phi_2}) \dot{\phi_1} ) \nonumber\\
+& = m_2 g l_2 \sin(\phi_2) + m_2 l_1 l_2 \sin(\phi_1 - \phi_2) \dot{\phi_1} \dot{\phi_2}
+\end{align}
+
+Let \(\rho := m_2/(m_1 + m_2) \). We can rewrite the equations of motion as
+\begin{align}
+\label{eq:dip-dynamics-L-3}
+l_1 \ddot{\phi_1} + \rho l_2 \cos(\phi_1 - \phi_2) \ddot{\phi_2} & = g \sin(\phi_1) \nonumber \\
+& \quad - \rho l_2 \sin(\phi_1 - \phi_2) \dot{\phi_2}^2 \\
+l_1 \cos(\phi_1 - \phi_2) \ddot{\phi_1} + l_2 \ddot{\phi_2} & = g \sin(\phi_2) \nonumber \\
+& \quad + l_2 \sin(\phi_1 - \phi_2) \dot{\phi_1}^2
+\end{align} 
+** Linearized Dynamics with base motion
+When linearized about the vertical equilibrium \(\phi_1^{\star} = \phi_2^{\star} = 0 \), we can set \(\cos(\phi_1 - \phi_2) \approx 1 \), \(\sin(\phi_1 - \phi_2) \approx \phi_1 - \phi_2 \) and neglect the higher order powers of \(\phi_{\cdot} \) and its derivatives. Then
+\begin{align}
+\label{eq:dip-dynamics-linear-MK}
+M_0 & = 
+\begin{bmatrix}
+ (m_{1} + m_{2}) l_{1}^2 &  m_{2} l_{1} l_{2} \\
+ m_{2} l_{1} l_{2} &  m_{2} l_{2}^2
+\end{bmatrix} \\
+K_0 & = \begin{bmatrix}
+-(m_{1} + m_{2}) g l_{1} & 0 \\
+0 & -2 m_{2} g l_{2} 
+\end{bmatrix}
+\end{align}
+and following equation (\ref{eq:euler-lagrange-general-time-dependent-linear}) the equations of motion become
+\begin{align}
+\label{eq:dip-dynamics-linear-1}
+& M_0 \ddot{\phi} + K_0 \phi = 0 \nonumber\\
+& \begin{bmatrix}
+l_{1}^2 & \rho l_{1} l_{2} \\
+\rho l_{1} l_{2} & \rho l_{2}^2
+ \end{bmatrix} \ddot{\phi} - g \begin{bmatrix}
+l_{1} & 0 \\
+0 & \rho l_{2}
+ \end{bmatrix} \phi = 0
+\end{align}
+where
+\begin{align*}
+\rho = \frac{m_2}{m_1 + m_2}.
+\end{align*}
+# In first order form, setting \(\phi_{11} := \phi_1 \), \(\phi_{12} := \dot{\phi}_1 \), \(\phi_{21} := \phi_2 \), \(\phi_{22} := \dot{\phi}_2 \),
+# \begin{small}
+# \begin{align}
+# \label{eq:dip-dynamics-linear-2}
+# \begin{bmatrix} \dot{\phi}_{11} \\
+# \dot{\phi}_{21} \\
+# \dot{\phi}_{12} \\
+# \dot{\phi}_{22} \end{bmatrix} & = \left( \begin{array}{c c:c c}
+# 0 & 0 & 1 & 0 \\
+# 0 & 0 & 0 & 1 \\
+# \hdashline
+# \multicolumn{2}{c:}{\begin{pmatrix} g/l_1 & 0\\ 0 & g/l_2 \end{pmatrix} \begin{pmatrix} 1 & \rho \\ 1 & 1 \end{pmatrix}^{-1}} & \multicolumn{2}{c}{\begin{array}{c c}
+#   0 & 0\\
+#   0 & 0
+# \end{array}}
+# \end{array} \right) \begin{bmatrix} \phi_{11} \\ \phi_{21} \\ \phi_{12} \\ \phi_{22} \end{bmatrix} \\
+# & = \left( \begin{array}{c c: c c}
+#   0 & 0 & 1 & 0 \\ 
+#   0 & 0 & 0 & 1 \\ 
+#  \hdashline
+#   \frac{1}{1-\rho} \frac{g}{l_1} & -\frac{\rho}{1-\rho} \frac{g}{l_1} & 0 & 0 \\
+#  -\frac{1}{1-\rho} \frac{g}{l_2} & \frac{1}{1-\rho} \frac{g}{l_2} & 0 & 0
+# \end{array}
+#  \right) \begin{bmatrix} \phi_{11} \\ \phi_{21} \\ \phi_{12} \\ \phi_{22} \end{bmatrix}
+# \end{align}
+# \end{small}
+Equation (\ref{eq:dip-dynamics-linear-1}) can be generalized to include vertical base motion \(Y(t) \) quite simply by examining the system from a non-inertial frame of reference attached to the base. Then the effective \( \overline{g} = g + \ddot{Y}(t)\), and the equations of motion become
+\begin{align}
+& \begin{bmatrix}
+l_{1}^2 & \rho l_{1} l_{2} \\
+\rho l_{1} l_{2} & \rho l_{2}^2
+ \end{bmatrix} \ddot{\phi} - (g + \ddot{Y}(t)) \begin{bmatrix}
+l_{1} & 0 \\
+0 & \rho l_{2} \end{bmatrix} = 0 ,\ \text{or} \nonumber\\
+& \begin{bmatrix} \ddot{\phi_1} \\ \ddot{\phi_2} \end{bmatrix} = \frac{(g + \ddot{Y}(t))}{1-\rho}  \begin{bmatrix}
+1/l_{1} & -\rho/l_2 \\
+-1/l_1 & 1/l_{2}
+ \end{bmatrix} \begin{bmatrix} \phi_1 \\ \phi_2 \end{bmatrix} \label{eq:dip-dynamics-linear-base-motion}
+\end{align}
+We observe that this the stiffness matrix \(K_\phi \) is the product of a scalar function of time and a matrix-valued function of \(\phi \), and is thus in the separable form (equation \ref{eq:euler-lagrange-separable-linear}) required for the diagonalization of the Euler-Lagrange equations.
+* TODO Root locus based-analysis of the linearized dynamics with base motion :noexport:
+We consider the SISO system from a force input \(u \) on the lower bob to \(\psi_1 \), the angle of the upper bob to the vertical. For this system,
+\begin{align}
+\label{eq:dip-state-space-realization}
+B & = \begin{bmatrix} 0 \\ 0 \\ 1 \\ 0 \end{bmatrix},\quad C = \begin{bmatrix} 0 & 1 & 0 & 0 \end{bmatrix} \\
+D & = 0_{4 \times 4}
+\end{align}
+We can separate the \(A \) matrix into an LTI and a time-varying part, as
+\begin{align}
+\label{eq:dip-state-space-realization-A}
+A = A_0 + a p(t) A_1 := \begin{pmatrix}
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 1 \\
+\frac{2 g }{l} & - \frac{g}{l} & 0 & 0 \\
+- \frac{2 g}{l} & \frac{2 g}{l} & 0 & 0
+\end{pmatrix} + \frac{\ddot{Y}}{l}\begin{pmatrix}
+0 & 0 & 0 & 0 \\
+0 & 0 & 0 & 0 \\
+2 & - 1 & 0 & 0 \\
+- 2 & 2 & 0 & 0
+\end{pmatrix}
+\end{align}
+Where \(A_1 \) is the second matrix above and \(a p(t) = \frac{\ddot{Y}}{l} \). With this formulation, we can represent this system as LTI in feedback with a time-varying gain:
+* Diagonalization of the double inverted pendulum
+\label{sec:dip-diagonalization}
+We analyze this system as a pair of decoupled vibrationally stabilized systems, which allows us to apply the method of section \ref{sec:superimposing-stability-maps} to study the effect of the system parameters on stability. While this method can be applied more generally to the case of multiple links, applying it to the relatively simple case of two links is illuminating.
+
+Equations \ref{eq:dip-dynamics-linear-1} and \ref{eq:dip-dynamics-linear-base-motion} are of the form
+\begin{align*}
+M_0 \ddot{\Phi} = - K_0 \Phi
+\end{align*}
+where \(\Phi = \left[ \begin{smallmatrix} \phi_1 & \phi_2 \end{smallmatrix} \right]^{T}\) and the matrix of spring constants \(K \) may be considered a periodic function of time. This system can be diagonalized into two independent time-parametrically forced oscillators. As such, each subsystem will have a different time-varying spring constant, leading to different vibrational stabilization bands for each in parameter space. We expect the intersection of these bands to be where the system can be stabilized.
+
+#+begin_export latex :exports none
+% \label{eq:dip-linearized-2nd-order}
+Applying this idea to the system
+\begin{align*}
+\begin{bmatrix}
+1 & \rho \gamma \\
+\frac{1}{\gamma} & 1
+ \end{bmatrix} \begin{bmatrix} \ddot{\phi_1} \\ \ddot{\phi_2} \end{bmatrix} = \begin{bmatrix} \frac{g}{l_1} & 0 \\ 0 & \frac{g}{l_2} \end{bmatrix} \begin{bmatrix} \phi_{1} \\ \phi_{2} \end{bmatrix}.
+\end{align*}
+gives
+\begin{align*}
+\begin{bmatrix} \ddot{\phi_1} \\ \ddot{\phi_2} \end{bmatrix} & = \frac{g}{1-\rho} \begin{bmatrix}
+1 & - \rho \gamma \\
+-\frac{1}{\gamma} & 1
+ \end{bmatrix} \begin{bmatrix}
+\frac{1}{l_{1}} & 0 \\
+0 & \frac{1}{l_{2}}
+ \end{bmatrix} \begin{bmatrix} \phi_{1} \\ \phi_{2} \end{bmatrix} \\
+ & = \frac{g}{1-\rho} \begin{bmatrix}
+\frac{1}{l_{1}} & \frac{-\rho}{l_{1}} \\
+-\frac{1}{l_{2}} & \frac{1}{l_{2}}
+ \end{bmatrix} \begin{bmatrix} \phi_{1} \\ \phi_{2} \end{bmatrix}.
+\end{align*}
+#+end_export
+
+** The symmetric case
+We apply this first to the symmetric case of \(m_1 = m_2 \),  \(l_1 = l_2 = l\) as a convenient illustration of the method.
+
+\(m_1 = m_2 \) implies  \(\rho = 1/2 \), and system \ref{eq:dip-dynamics-linear-base-motion} simplifies to
+\begin{align}
+\label{eq:dip-linearized-simple}
+\begin{bmatrix} \ddot{\phi_{1}} \\ \ddot{\phi_{2}} \end{bmatrix} & = \frac{g + \ddot{Y}(t)}{l} \begin{bmatrix}
+2 & -1 \\
+-2 & 2
+\end{bmatrix} \begin{bmatrix} \phi_{1} \\ \phi_{2} \end{bmatrix}.
+\end{align}
+Diagonalizing this gives
+\begin{small}
+\begin{align}
+\label{eq:dip-linearized-simple-diagonal}
+\begin{bmatrix} \ddot{\phi_{1}} \\ \ddot{\phi_{2}} \end{bmatrix} & = \frac{g + \ddot{Y}(t)}{l} \ V \begin{bmatrix}
+2 + \sqrt{2} & 0 \\
+0 & 2 - \sqrt{2}
+ \end{bmatrix} V^{-1} \begin{bmatrix} \phi_{1} \\ \phi_{2} \end{bmatrix} \\
+ V & = \begin{bmatrix}
+- \frac{1}{\sqrt{2}} & \frac{1}{\sqrt{2}} \\
+1 & 1
+\end{bmatrix}. \nonumber
+\end{align}
+\end{small}
+With periodic base motion \(Y(t) = Y(t+T) \), this corresponds to two decoupled Hill ODEs with "spring constants" \(\frac{g + \ddot{Y}(t)}{l} (2 \pm \sqrt{2}) \):
+\begin{align}
+\label{eq:dip-linearized-simple-diagonal-parametric}
+\ddot{\theta_1} & = \frac{g + \ddot{Y}}{l} \left( 2 + \sqrt{2} \right) \theta_1 \\
+\ddot{\theta_2} & = \frac{g + \ddot{Y}}{l} \left( 2 - \sqrt{2} \right) \theta_2
+\end{align}
+where
+\begin{equation}
+\label{eq:dip-simple-eigenmodes}
+\begin{bmatrix} \theta_{1} \\ \theta_{2} \end{bmatrix} = \begin{bmatrix}
+- \frac{1}{\sqrt{2}} & \frac{1}{\sqrt{2}} \\
+1 & 1
+ \end{bmatrix}^{-1} \begin{bmatrix} \phi_{1} \\ \phi_{2} \end{bmatrix} = \begin{bmatrix}
+- \frac{1}{\sqrt{2}} &  \frac{1}{2} \\
+ \frac{1}{\sqrt{2}} &  \frac{1}{2}
+ \end{bmatrix} \begin{bmatrix} \phi_{1} \\ \phi_{2} \end{bmatrix}.
+\end{equation}
+To investigate the stability properties of this system, we need to specify \(Y(t) \). We analyze the case of Mathieu's equation, where \(Y(t) := \epsilon l \cos(t) \). Writing the first equation in the form used in vibrational stabilization we get
+\begin{equation}
+\label{eq:dip-mode-as-kapitza-equation}
+\ddot{\theta}_1 + \left( a (2 + \sqrt{2})+ \epsilon (2 + \sqrt{2}) \cos(t) \right) \theta_1 = 0
+\end{equation}
+where \(a = {- \frac{g}{l}} \). Thus the stabilization diagram for this mode can be obtained by rescaling the original picture of vibrational stabilization in the \((a, \epsilon) \) space of the linearized Kapitza's pendulum by the eigenvalue \(2 + \sqrt{2}\). Figure \ref{fig:dip-vibrational-stabilization-zoomed-shaded} shows the stability bands for the two modes. The narrow region of overlap near \(a = 0\) is where the system can be stabilized.
+
+#+ATTR_LATEX: :width 0.9\columnwidth
+#+CAPTION: \footnotesize \label{fig:vibr-stab-dip-simple} Vibrational stabilization of the double inverted double pendulum in equation (\ref{eq:dip-linearized-simple}).
+
+#+begin_export latex
+\begin{figure}
+    \centering
+    \def\svgwidth{0.9\columnwidth}
+    \import{/home/karthik/Dropbox/KarthikBassam/double_inverted_pendulum/figures}{dip-vibrational-stabilization-zoomed-shaded.pdf_tex}
+    \caption{\footnotesize \label{fig:dip-vibrational-stabilization-zoomed-shaded} Vibrational stabilization of the inverted double pendulum with well separated modal frequencies, corresponding to \(m_2 = m_1 \) and \(l_1 = l_2 \). Stability plots for the two vibrational modes are shown in {\color{blue} blue} (upper curve) and {\color{red} red} (lower curve). The overlapping area (shaded in gray) corresponds to the part of the parameter space \((a, \epsilon) \) where the double inverted pendulum can be vibrationally stabilized. Inset: zoomed in view of this region. Contrast this area with the one in figure \ref{fig:dip-vibrational-stabilization-same-zoomed-shaded}.}
+\end{figure}
+#+end_export
+
+#+begin_export latex :exports none
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.9\columnwidth]{figures/dip-vibrational-stabilization-zoomed.png}
+  \caption{\footnotesize Vibrational stabilization of the inverted double pendulum in equation (\ref{eq:dip-linearized-simple}).}
+  \label{fig:vibr-stab-dip-simple}
+\end{figure}
+#+end_export
+
+*** normal modes for the symmetric case
+From equation (\ref{eq:dip-simple-eigenmodes}),
+\begin{align*}
+\theta_1 & = \frac{\phi_{2}}{2} - \frac{\phi_{1}}{\sqrt{2}} \\
+\theta_2 & = \frac{ \phi_{2}}{2} + \frac{\phi_{1}}{\sqrt{2}}
+\end{align*}
+The first mode of the system corresponds to a weighted differential motion (with the larger eigenvalue) and the latter to weighted unison motion. The larger eigenvalue corresponds to the lower and thinner (red) band in Figure \ref{fig:dip-vibrational-stabilization-zoomed-shaded}, so vibrationally stabilizing the differential motion of the links requires higher parametric forcing frequencies (corresponding to lower \( a\)) and lower forcing amplitude. The unison motion mode is in general stabilizable over a wider range of frequencies and forcing amplitudes.
+
+#+begin_export latex :exports none
+\begin{align*}
+\phi_{1} & = \frac{1}{\sqrt{2}} (\theta_2 - \theta_1)\\
+\phi_{2} & = (\theta_2 + \theta_1)
+\end{align*}
+#+end_export
+
+** Improving the band of stabilization
+\label{sec:dip-improve}
+With the symmetric case illustrating the difficulty of vibrationally stabilizing a double inverted pendulum, it is natural to ask how this changes with the configurations of the links and masses. We consider the general trend with variable masses and link lengths in this section.
+
+From equation (\ref{eq:dip-mode-as-kapitza-equation}) and Figure \ref{fig:dip-vibrational-stabilization-zoomed-shaded}, we see that the overlap of the two bands of stability is a function of the ratio of the two eigenvalues of the system. Indeed, the stabilization diagrams for both modes are scaled versions of the band for the Kapitza pendulum in Figure \ref{fig:vib-stab-vs-averaging}, with the eigenvalues for the modes being the respective scaling constants. From a design perspective, the overlap can be improved by bringing the eigenvalue ratio closer to \(1 \), or the discriminant of the characteristic equation of the Jacobian of system \ref{eq:dip-dynamics-linear-base-motion} to \(0 \). The discriminant is
+\begin{align}
+\label{eq:dip-linearized-simple-discriminant}
+& \left( \lambda_1 + \lambda_2 \right)^2 - 4 \lambda_1 \lambda_2 = Tr(M_0^{-1} K_0) - 4 \det(M_0^{-1} K_0) \nonumber\\
+& = \frac{1}{1-\rho} \left( \frac{1}{l_1} + \frac{1}{l_{2}} \right)^2 - 4 \frac{1}{l_1 l_2} \nonumber\\
+& = \frac{4}{(1 - \rho) l_1 l_2} \left[ \underbrace{\left( \frac{\mathtt{A.M.}(l_1, l_2)}{\mathtt{G.M.}(l_1, l_2)} \right)^2}_{\ge 1} - \underbrace{(1 - \rho)}_{ \le 1} \right]
+\end{align}
+Since \(\rho = \frac{m_2}{m_{1} + m_2} \in (0, 1)\)  and the arithmetic mean (A.M.) of \(l_1, l_{2} \) is always larger than the geometric mean (G.M.), the discriminant is always strictly positive. The best we can do is in the limit \(\rho \to 0 \) or \(m_2 \to 0 \) and (independently) with \(l_1 = l_2 \). That is, the double inverted pendulum is easier to vibrationally stabilize when the second mass is significantly lighter than the first. 
+
+For instance, with \(m_1 = m, m_2 = 0.01 m\) and \(l_1 = l_2 = l \), the eigenvalues are \(\frac{g}{l} (1.01 \pm 0.1005) \), and the  stability bands for the two modes exhibit considerable overlap (Figure \ref{fig:dip-vibrational-stabilization-same-zoomed-shaded}).
+#+ATTR_LATEX: :width 0.9\columnwidth
+#+CAPTION: \footnotesize \label{fig:dip-vibrational-stabilization-same-zoomed} Vibrational stabilization of the inverted double pendulum with near identical modal frequencies.
+
+#+begin_export latex
+\begin{figure}
+    \centering
+    \def\svgwidth{0.9\columnwidth}
+   \import{/home/karthik/Dropbox/KarthikBassam/double_inverted_pendulum/figures}{dip-vibrational-stabilization-same-zoomed-shaded.pdf_tex}
+   \caption{\footnotesize \label{fig:dip-vibrational-stabilization-same-zoomed-shaded} Vibrational stabilization of the inverted double pendulum with near identical modal frequencies, corresponding to \(m_2 = 0.01 m_1 \) and \(l_1 = l_2 \). Stability plots for the two vibrational modes are shown in {\color{blue} blue} (upper curve) and {\color{red} red} (lower curve). The overlapping area (shaded in gray) corresponds to the part of the parameter space \((a, \epsilon) \) where the double inverted pendulum can be vibrationally stabilized. Inset: zoomed in view of this region. Contrast this area with the one in figure \ref{fig:dip-vibrational-stabilization-zoomed-shaded}.}
+\end{figure}
+#+end_export
+
+#+begin_export latex :exports none
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=0.9\columnwidth]{figures/dip-vibrational-stabilization-same.png}}
+\caption{\footnotesize Vibrational stabilization of the inverted double pendulum with near identical modal frequencies.}
+\label{fig:dip-vibrational-stabilization-same}
+\end{figure}
+#+end_export
+
+A surprising aspect of the dependence on the link lengths of the discriminant in equation (\ref{eq:dip-linearized-simple-discriminant}) is that making either link shorter than the other makes the discriminant larger, the eigenvalues more separated, and the overlapping region in Figure \ref{fig:dip-vibrational-stabilization-zoomed-shaded} smaller. Thus the best stabilization is achieved when \(m_2 \ll m_1 \) and \(l_1 = l_2 \). This latter observation does not generalize to the case of more links, however (section \ref{sec:nip}).
+
+** Linearized Dynamics for a simple case with base motion.           :noexport:
+For the case \(m_1 = m_2 = m \), \(l_1 = l_2 = l \), we have \(\rho = 1/2 \). When the base is oscillated vertically with trajectory \(Y(t) \), we can modify the linearized dynamics by considering the non-inertial frame moving with the pivot. Then the effective \(g \) is \(g + \ddot{Y} \), and the equations of motion are
+\begin{align}
+\label{eq:dip-dynamics-simple-base-motion}
+\begin{bmatrix} \dot{\phi_1}_1 \\ \dot{\phi_2}_1 \\ \dot{\phi_1}_2 \\\dot{\phi_2}_{2} \end{bmatrix} =
+\begin{pmatrix}
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 1 \\
+\frac{2 (g + \ddot{Y})}{l} & - \frac{g + \ddot{Y}}{l} & 0 & 0 \\
+- \frac{2 (g + \ddot{Y})}{l} & \frac{2 (g + \ddot{Y})}{l} & 0 & 0
+\end{pmatrix} \begin{bmatrix} \phi_{11} \\ \phi_{21} \\ \phi_{12} \\ \phi_{22} \end{bmatrix}
+\end{align}
+* The multiple link inverted pendulum
+\label{sec:nip}
+#+begin_export latex
+\begin{figure}
+    \centering
+    \def\svgwidth{0.4\columnwidth}
+    \import{/home/karthik/Dropbox/KarthikBassam/double_inverted_pendulum/figures}{n-link-pendulum.pdf_tex}
+    \label{fig:n-link-pendulum}
+    \caption{\footnotesize \label{fig:double-pendulum} The \(N \)-link inverted pendulum model consisting of masses \(m_1 \) through \(m_{\ssN} \) and links of length \(l_1 \) through \(l_{\ssN} \). Here \(N = 4 \). The angles from the vertical are \(\phi_1 \) through \(\phi_{\ssN} \) respectively. The base moves vertically according to \(Y(t) \).}
+\end{figure}
+#+end_export
+In this and the following sections, we apply the diagonalization and scaling method of section \ref{sec:dip-diagonalization} to the general case of vibrationally stabilizing an inverted pendulum with \(N \) links. We proceed in a manner similar to the two-link case, by deriving the equations of motion with base motion linearized about the vertical, studying the dynamics of the symmetric case of equal masses and link lengths, and then considering the stabilizability of more general configurations.
+
+# Vibrational stabilization of an inverted pendulum with three or more links can be similarly analyzed by finding the modal frequencies of the system linearized about the vertical equilibrium.
+
+Our model is a straightforward extension of the one in Figure \ref{fig:double-pendulum} to \(N \) links, with \(\phi_i\) the angle of the \(i^{th} \) link from the vertical, \(m_i \) the mass of the \(i^{\text{th}} \) bob, and  \(l_i \) the length of the corresponding link. When linearized about the vertical, the equations of motion are (see Appendix \ref{sec:nip-equations-derivation} for details):
+\begin{small}
+\begin{align}
+\label{eq:nip-linearized-lagrange-equations-matrix-main}
+& \left( K_0^{-1} M_0 \right) \ddot{\phi} = \phi,\ \text{or} \nonumber \\
+& \setlength{\arraycolsep}{1pt}
+\begin{bmatrix}
+l_1 & \rho_{1, 2} l_2 & \dots & \rho_{1, {\ssN}\sm 1} l_{{\ssN}\sm 1} & \rho_{1, {\ssN}} l_{\ssN} \\
+l_1 &  l_2 & \dots & \rho_{2, {\ssN}\sm 1} l_{{\ssN}\sm 1} & \rho_{2, {\ssN}} l_{\ssN} \\
+\vdots &  \vdots & \ddots & \vdots & \vdots \\
+l_1 & l_2 & \dots & l_{{\ssN}\sm 1} & \rho_{{\ssN, {\ssN}}\sm 1} l_{\ssN} \\
+l_1 & l_{2} & \dots & l_{{\ssN}\sm 1} & l_{\ssN}
+ \end{bmatrix} \begin{bmatrix} \ddot{\phi}_{1} \\ \ddot{\phi}_{2} \\ \vdots \\ \ddot{\phi}_{{\ssN}\sm 1} \\ \ddot{\phi}_{\ssN} \end{bmatrix} = (g + \ddot{Y}) \begin{bmatrix} \phi_{1} \\ \phi_{2} \\ \vdots \\ \phi_{{\ssN}\sm 1} \\ \phi_{\ssN} \end{bmatrix}
+\end{align}
+\end{small}
+Here each \(\rho_{m,n} \) is the ratio of cumulative sums of masses above links \(k \) and \(j \) respectively:
+\begin{equation}
+\label{eq:rho-general-definition}
+\rho_{m,n} := \frac{\sum\limits_{i=n}^{\ssN} m_i}{\sum\limits_{i=m}^{\ssN} m_i}
+\end{equation}
+Note that \(\rho_{n ,n} = 1 \) and \(\rho_{m, n} < 1 \) whenever \(n > m \), as is the case everywhere that \(\rho_{\cdot,\cdot} \) appears in equation (\ref{eq:nip-linearized-lagrange-equations-matrix-main}).
+
+** Diagonalization of the multiple inverted pendulum
+As in section \ref{sec:dip-diagonalization}, we can decouple equation (\ref{eq:nip-linearized-lagrange-equations-matrix-main}) into \(N \) systems with parametric time-periodic forcing. Each mode will have a corresponding stability plot in parameter space, and the overlap of all of them corresponds to configurations of the system that are vibrationally stabilizable. As before, we analyze the symmetric case first before considering general configurations of the \(N \)-link inverted pendulum.
+
+*** The symmetric case
+We can find the modal frequencies for the symmetric case \(m_1 = m_2 = \dots = m_N = m \) and \(l_1 = l_2 = \dots = l_N = l \) in a straightforward manner. Then \(\rho_{k,j} = (N-k+1)/(N-j+1) \), and \(K_0^{-1} M_0 \) is
+\begin{align}
+\label{eq:nip-simple}
+\frac{l}{g+\ddot{Y}} \begin{bmatrix}
+1 & \rho_{1, 2} & \rho_{1, 3} & \dots & \rho_{1, {\ssN} \sm 1} & \rho_{1, {\ssN}} \\
+1 &  1 & \rho_{2, 3} & \dots & \rho_{2, {\ssN} \sm 1} & \rho_{2, {\ssN}} \\
+1 &  1 & 1 & \dots & \rho_{3, {\ssN} \sm 1} & \rho_{3, {\ssN}} \\ 
+\vdots &  \vdots & \vdots & \ddots & \vdots & \vdots \\
+1 & 1 & 1 & \dots &  1 & \rho_{{\ssN, {\ssN}} \sm 1} \\
+1 & 1 & 1 &  \dots & 1 & 1
+ \end{bmatrix}
+\end{align}
+In this matrix \(\rho_{\cdot, \cdot} < 1\), and \(\rho_{j,k} > \rho_{i,k}\) whenever \( j < i\). Since \(\rho_{j,k} \ne \rho_{i,k} \) if \( j \ne i\) so long as all the masses are strictly positive, \(K_0^{-1} M_0 \) is full rank.
+
+The eigenvalues of \(K_0^{-1} M_0 \) are shown in Table \ref{tab:nip-10-eigenvalues} for a few representative values of \(N \). The ratio of the largest to smallest eigenvalue is a measure of the size of the overlapping area in the \((a, \epsilon) \) parameter space of the stability plots of the different modes. The proximity to this ratio to \(1 \) implies a larger overlap, and thus greater vibrational stabilizability. This ratio increases with \(N \), making it harder to stabilize inverted pendulums with larger numbers of links. Figure \ref{fig:nip-inverted-pendulum-eig-ratios} shows this ratio over a larger range of \(N \).
+
+#+ATTR_LATEX: :float t :placement [tb] :align *{4}{r}
+#+CAPTION: \footnotesize \label{tab:nip-10-eigenvalues} Eigenvalues of the symmetric linearized inverted pendulum with \(N \) links. The stabilization band in parameter space for each mode is the band in Figure \ref{fig:vib-stab-vs-averaging} scaled by the corresponding eigenvalue. The ratio of the smallest to largest eigenvalue is thus an indicator of the stabilizability of the system as a whole. The system is progressively less vibrationally stabilizable as \(N \) increases.
+#+RESULTS: eigenvalue-ratios-table
+|  N | \(\lambda_{min} \) | \(\lambda_{max}\) | \(\frac{\lambda_{max}}{\lambda_{min}} \) |
+|----+-------------+------------+----------------------------|
+|  2 |       0.586 |      3.414 |                        5.8 |
+|  4 |       0.323 |      9.395 |                       29.1 |
+|  6 |       0.223 |     15.983 |                       71.7 |
+| 10 |       0.138 |     29.921 |                      216.8 |
+| 20 |       0.071 |     66.524 |                        937 |
+
+# We are concerned with the ratio of the magnitude of the largest and smallest eigenvalues, as this determines the region of overlap of the vibrationally stabilized bands. Figure \ref{fig:10-inverted-pendulum-vibrational-stabilization} shows the tiny region of overlap.
+# #+CALL: plot-stability-boundaries[:results silent](scaling_factor=7.25689404935,b=1)
+# #+CALL: plot-stability-boundaries[:results silent](scaling_factor=0.0454615713338,r=1)
+# \begin{figure}
+#     \centering
+#     \def\svgwidth{0.9\columnwidth}
+#     \import{/home/karthik/Dropbox/KarthikBassam/double_inverted_pendulum/figures}{nip-vibrational-stabilization-4-links-zoomed-shaded.pdf_tex}
+#     \caption{\footnotesize \label{fig:nip-vibrational-stabilization-4-links-zoomed-shaded} Vibrational stabilization of the inverted four-link pendulum with well separated modal frequencies, corresponding to equal masses and link lengths. Stability plots for the vibrational modes corresponding to the smallest and largest eigenvalue are shown in {\color{blue} blue} (top curve) and {\color{red} red} (bottom curve) respectively, with the plots corresponding to the intermediate eigenvalues in gray. Inset: zoomed in view of this region. The overlapping area (shaded in gray) corresponds to the part of the parameter space \((a, \epsilon) \) where the four-link inverted pendulum can be vibrationally stabilized. Contrast this area with the ones for the symmetric two-link case in figures \ref{fig:dip-vibrational-stabilization-same-zoomed-shaded} and \ref{fig:dip-vibrational-stabilization-zoomed-shaded}.}
+# \end{figure}
+
+#+ATTR_LATEX: :width 0.9\columnwidth
+#+CAPTION: \footnotesize \label{fig:10-inverted-pendulum-vibrational-stabilization} Vibrational stabilization of the inverted pendulum with 10 links.
+*** TODO normal modes for the symmetric case                        :noexport:
+
+* Observations about stabilizability
+\label{sec:nip-observations}
+# How does the ratio of the smallest and largest eigenvalue change with \(N \), the size of the system? We can estimate this using the Gershgorin disk theorem. Since the diagonals are all \(1 \), all the disks are centered at \(1 \). Further, since all the ratios \(\rho_{k,j} < 1 \), the largest disk has radius \(N-1 \) (corresponding to the last row of \(1 \)'s). Thus the largest eigenvalue of \(\overline{M} \) is \(\lambda_{max}(\overline{M}) < (N-1) + 1 \). So the smallest eigenvalue of \(M_0^{-1} K_0 \) is larger than \(1/N \). Next, we observe that the sum of the eigenvalues of \(\overline{M} \) is \(N \), its trace. (TODO)
+
+In this section we study the effect of varying the configuration of the \(N \)-link inverted pendulum on its vibrational stabilizability. The effect of varying the masses is investigated by its effect on the eigenvalues of \(K_0^{-1} M_0 \) in \ref{eq:nip-simple}. Consider an arrangement of masses such that \(r := m_{k+1}/m_k\), /i.e./ each mass is a factor of \(r \) lighter than the one below it. Then for an inverted pendulum with equal link lengths \(l \) we have
+\begin{equation}
+\label{eq:nip-rho-r-ratio}
+\rho_{j,k} = \frac{\sum\limits_{i=j}^{\ssN} m_i}{\sum\limits_{i=k}^{\ssN} m_i} = r^{j-k} \frac{1 - r^{{\ssN}-j+1}}{1 - r^{{\ssN} - k + 1}}.
+\end{equation}
+The effect of \(r \) on the eigenvalue ratio of \(K_0^{-1} M_0 \) (from equation (\ref{eq:nip-simple})) and thus on the vibrational stabilizability of the system is captured in Figure \ref{fig:nip-mass-ratio-vs-eig-ratio} for an inverted pendulum with \(10 \) links. The system is practically not stabilizable in the symmetric case with equal masses \(r = 1 \).
+
+#+ATTR_LATEX: :width 0.9\columnwidth :placement [tb]
+#+CAPTION: \footnotesize \label{fig:nip-mass-ratio-vs-eig-ratio} The ratio of the largest and smallest eigenvalue of \(M_0^{-1} K_0 \) as a function of the ratio of consecutive masses \(r \) for an inverted pendulum with \(2 \) to \(10 \) links. The closer \(\lambda_{max}/\lambda_{min} \) is to \(1 \), the larger the overlap is between the stable regions in parameter space of the modes and the easier the system is to vibrationally stabilize. For the symmetric case with equal masses \((r = 1) \), the eigenvalue ratio for systems with \(> 2 \) links is \(\sim 10^2 \) and they are effectively not stabilizable.
+#+RESULTS:
+[[file:./figures/nip-mass-ratio-vs-eig-ratio.png]]
+
+This behavior is qualitatively evident in the structure of the mass matrix \(K_0^{-1} M_0 \):
+\begin{align}
+\label{eq:nip-simple-2}
+K_0^{-1} M_0 & = \frac{l}{g + \ddot{Y}(t)} \begin{bmatrix}
+1 & \rho_{1, 2} & \rho_{1, 3} & \dots & \rho_{1, {\ssN} \sm 1} & \rho_{1, {\ssN}} \\
+1 &  1 & \rho_{2, 3} & \dots & \rho_{2, {\ssN} \sm 1} & \rho_{2, {\ssN}} \\
+1 &  1 & 1 & \dots & \rho_{3, {\ssN} \sm 1} & \rho_{3, {\ssN}} \\ 
+\vdots &  \vdots & \vdots & \ddots & \vdots & \vdots \\
+1 & 1 & 1 & \dots &  1 & \rho_{{\ssN, {\ssN}} \sm 1} \\
+1 & 1 & 1 &  \dots & 1 & 1
+ \end{bmatrix} \nonumber\\
+ & =: \frac{l}{g + \ddot{Y}} \bar{\rho}
+\end{align}
+where \(\bar{\rho} \) is the matrix with \(\rho_{\cdot, \cdot} \) above the diagonal and \(1 \) everywhere else. 
+- \(r \ll 1 \): The masses have the property that \(m_1 \gg m_2 \gg m_3 \gg \dots \gg m_N \), /i.e./ each mass weighs significantly more than the next in sequence. Then \(\rho_{k,j} \approx 0 \) \(\forall j > k \) and \(\bar{\rho} \) is close to a lower triangular matrix of \(1 \)'s. In this limit all the eigenvalues of \(\bar{\rho} \) (and thus of \(\bar{\rho}^{-1} \)) are close to \(1 \) and thus to each other, and there will be significant overlap in the bands of vibrational stabilization for all the modes.
+
+- \(r \gg 1 \): In this extreme \(m_1 \ll m_2 \ll \dots \ll m_N \), all the \(\rho_{k,j} \approx 1 \), and \(\bar{\rho} \) is near singular. The ratio of the largest to the smallest eigenvalue then goes to \(\infty \), making the system impossible to control with vibrational stabilization.
+
+#+ATTR_LATEX: :width 0.9\columnwidth
+#+CAPTION: \footnotesize \label{fig:nip-inverted-pendulum-eig-ratios} Ratio of the largest to smallest eigenvalue of \(M_0^{-1} K_0 \) as a function of \(N \). \(r \) is the ratio of consecutive masses in the chain of links, with \(r = 1.0 \) corresponding to the symmetric case of equal masses. The area of overlap in the stability plots of the corresponding modes corresponds to values of \((\omega^2, \epsilon) \) that vibrationally stabilize the system. This area is never zero but is vanishingly small for larger \(N \). Except for the case \(r = 0.1 \), the system is effectively not controllable through vibrational stabilization when \(N > 6 \).
+#+RESULTS:
+[[file:./figures/n_inverted_pendulum_eig_ratios.png]]
+
+** TODO The effect of varying link lengths                           :noexport:
+
+* Scratch
+
+\[
+frag-p18
+\]
+
+\[
+frag-p18
+\]
+
+
+* Test
+
+\begin{align*}
+  \begin{bmatrix} 
+1  & 2 & 3 & 4 \\
+8  & 4 & -2 & 4 \\
+0  & 1 & a & b
+ \end{bmatrix}
+\end{align*}
+
+| one | two | three | four |
+|-----+-----+-------+------|
+|   1 |   2 |     3 |    4 |
+|   5 |   6 |     7 |    8 |
+
+#+BEGIN_SRC python
+prlist(range(1,10))
+#+END_SRC
+
+#+RESULTS:
+None
+
+
+\begin{align}
+\label{eq:dip-dynamics-T}
+& T[\phi, \dot{\phi}] = \frac{1}{2} m_1 (\dot{x}_1^2 + \dot{y}_1^2) + \frac{1}{2} m_2 (\dot{x}_2^2 + \dot{y}_2^2) \nonumber \\
+& = \frac{1}{2} (m_1 + m_2) l_1^2 \dot{\phi_1}^2 + \frac{1}{2} m_2 l_2^2 \dot{\phi_2}^2 \nonumber \\
+& + m_2 l_1 l_2 \cos(\phi_1 - \phi_2) \dot{\phi_1} \dot{\phi_2} \nonumber \\
+& = \frac{1}{2} \dot{\phi}^{T} \left[ \begin{smallmatrix}
+ (m_{1} + m_{2}) l_{1}^2 &  m_{2} l_{1} l_{2} \cos(\phi_1 - \phi_2) \\
+ m_{2} l_{1} l_{2} \cos(\phi_1 - \phi_2) &  m_{2} l_{2}^2
+ \end{smallmatrix} \right] \dot{\phi} \nonumber \\
+& =: \frac{1}{2} \dot{\phi}^{T} M_\phi\ \dot{\phi}
+\end{align}
+
+
+* Conclusion
+\label{sec:conclusion}
+* References                                                            :ignore:
+#+LATEX: \bibliographystyle{plain}
+#+LATEX: \bibliography{control_systems}
+* Appendices                                                            :ignore:
+#+LATEX: \begin{appendix}
+** Equations of motion for the multiple link inverted pendulum
+\label{sec:nip-equations-derivation}
+
+*** Kinematics
+With \((x_i, y_i) \) and \(\phi_i \) the cartesian coordinates and angle from the vertical of the \(i^{\text{th}} \) link, we have
+\begin{align}
+\label{eq:nip-kinematics}
+x_i, y_i & = \sum_{k=1}^{i} l_k \sin(\phi_{k}), \sum_{k=1}^{i} l_k \sin(\phi_k) \\
+\dot{x}_i, \dot{y}_i & = \sum_{k=1}^{i} l_k \cos(\phi_k) \dot{\phi}_k, - \sum_{k=1}^{i} l_k \sin(\phi_k) \dot{\phi}_k \\
+\dot{x}_i^2 + \dot{y}_i^2 & = \sum_{j=1}^{i} l_j^2 \dot{\phi}_j^2 + \sum_{\substack{m,n=1 \\ m \ne n}}^i l_m l_n \cos(\phi_m - \phi_n) \dot{\phi}_m \dot{\phi}_n
+\end{align}
+*** Dynamics
+Let \(c_{m,n} = \cos(\phi_m - \phi_n) \) and \(M_k = \sum\limits_{i=k}^{\ssN} m_i \), the sum of masses above link \(k \). Then the kinetic and potential energies of the system are
+\begin{align}
+\label{eq:nip-dynamics}
+T & = \frac{1}{2} \sum_{i=1}^{{\ssN}} m_i \left( \dot{x}_i^2 + \dot{y}_i^2 \right) \\
+& = \frac{1}{2} \sum_{i=1}^{{\ssN}} m_i \left[ \sum_{j=1}^{i} l_j^2 \dot{\phi}_j^2 + \sum_{\substack{m,n=1 \\ m \ne n}}^i l_m l_n c_{m,n} \dot{\phi}_m \dot{\phi}_n \right] \nonumber\\
+& = \frac{1}{2} \dot{\phi}^{T} \left[ \begin{smallmatrix}
+M_1 l_1^2 & c_{1,2} M_2 l_1 l_2 & \dots &  c_{1,{\ssN}} M_N l_1 l_N \\
+ c_{2,1} M_2 l_2 l_1 & M_2 l_2^2 & \dots &  c_{2,{\ssN}} M_N l_2 l_N \\
+\vdots & \vdots & \ddots & \vdots \\
+ c_{{\ssN},1} M_N l_N l_1 & \dots & \dots & M_N l_N^2
+ \end{smallmatrix} \right] \dot{\phi} \nonumber\\
+& =: \frac{1}{2} \dot{\phi}^T M_\phi \dot{\phi} \\
+V & = - \sum_{i=1}^{{\ssN}} m_i g \sum_{j=1}^{i} l_j (1 - \cos(\phi_j)) \nonumber \\
+& = \frac{1}{2} \phi^{T} (\sm g) \left[ \begin{smallmatrix}
+2 M_1 l_1 \frac{1 \sm \cos(\phi_1)}{\phi_1^2} & & \\
+& \ddots & \\
+&  & 2 M_N l_N \frac{1 \sm \cos(\phi_N)}{\phi_N^2}
+\end{smallmatrix} \right] \phi \nonumber\\
+& =: \frac{1}{2} \phi^{T} K_\phi \phi
+\end{align} 
+As in the case of two links \ref{eq:euler-lagrange-general-4}, the Euler-Lagrange equations are then
+\begin{align}
+\label{eq:nip-euler-lagrange-general}
+& \left(M_{\phi} {\ddot{\phi}}\right)_i + \left( K_{\phi} \phi \right)_i = \nonumber \\
+& \sum\limits_{l=1}^{\ssN} \sum\limits_{k=1}^{\ssN} \left( \frac{1}{2} \frac{\partial M_{\phi\ l, k}}{\partial \phi_i} - \frac{\partial M_{\phi\ l, i}}{\partial \phi_{k}} \right) \dot{\phi}_l \dot{\phi}_k \nonumber \\
+& - \frac{1}{2} \sum\limits_{l=1}^{\ssN} \sum\limits_{k=1}^{\ssN} \frac{\partial K_{\phi\ l,k}}{\partial \phi_{i}} \phi_l \phi_k, \quad i=1, \dots, N
+\end{align}
+
+#+begin_export latex :exports none
+And the Lagrangian \(L = T - V \). So
+\begin{align}
+\label{eq:nip-lagrangian}
+& \frac{\partial L}{\partial \dot{\theta}_{k}} = \frac{\partial T}{\partial \dot{\theta}_{k}} = \frac{1}{2} \sum_{i=1}^{\ssN} m_i \left[ 2 \sum_{j=1}^{i} \delta_{j,k} l_j^2 \dot{\theta}_j + \right. \nonumber\\
+&  \left. \sum_{\substack{m,n = 1\\ m \ne n}}^i l_m l_n \cos(\theta_m - \theta_n) \left( \dot{\theta}_n \delta_{m,k} + \dot{\theta}_m \delta_{n,k} \right) \right]  \\
+& \frac{\partial L}{\partial \theta_{k}} = \sum_{i=1}^{{\ssN}} m_i g \sum_{j=1}^{i} l_j \sin(\theta_j) \delta_{k,j} \nonumber\\
+& - \frac{1}{2} \sum_{i=1}^{{\ssN}} m_i \sum_{\substack{m,n = 1\\ m \ne n}}^i l_m l_n \sin(\theta_m - \theta_n) \dot{\theta}_m \dot{\theta}_n \left( \delta_{m,k} - \delta_{n,k} \right) \\
+& \frac{\mathrm{d} }{\mathrm{d} t} \frac{\partial L}{\partial \dot{\theta}_{k}} = \sum_{i=1}^{{\ssN}} m_i \sum_{j=1}^{i} l_j^2 \ddot{\theta}_k \delta_{j,k} + \nonumber\\
+& \sum_{i=1}^{{\ssN}} \frac{1}{2} m_i \sum_{\substack{m,n = 1\\ m \ne n}}^i l_m l_n \left[ \cos(\theta_m - \theta_n) (\ddot{\theta}_m \delta_{n,k} + \ddot{\theta}_n \delta_{m,k}) - \right. \nonumber \\
+& \left. \left( \dot{\theta}_n \delta_{m,k} + \dot{\theta}_m \delta_{n,k} \right) \sin(\theta_m - \theta_n) (\dot{\theta}_m \delta_{m,k} - \dot{\theta}_n \delta_{n,k}) \right]
+\end{align}
+#+end_export
+
+*** Linearization and base motion
+When linearized about the inverted position, \(\phi_i = 0\ \forall i\). Then \(\cos(\phi_m - \phi_n) \approx 1 \), \(\sin(\phi_m - \phi_n) \approx \phi_m - \phi_n \) and we can ignore all products or higher powers of \(\phi_i \) and its derivatives. Then
+\begin{align}
+\label{eq:nip-linearized-M0}
+M_0 & = \begin{bmatrix}
+ M_1 l_1^2 &  M_2 l_1 l_2 & \dots &  M_{\ssN} l_1 l_{\ssN} \\
+  M_2 l_2 l_1 & M_2 l_2^2 & \dots &  M_{\ssN} l_2 l_{\ssN} \\
+ \vdots & \vdots & \ddots & \vdots \\
+  M_{\ssN} l_{\ssN} l_1 & \dots & \dots & M_{\ssN} l_{\ssN}^2
+  \end{bmatrix} \\
+\label{eq:nip-linearized-K0}
+K_0 & = -g \begin{bmatrix}
+M_1 l_1 & & \\
+& \ddots & \\
+&  & M_{\ssN} l_{\ssN}
+\end{bmatrix}
+\end{align}
+and following equation (\ref{eq:euler-lagrange-general-time-dependent-linear}), the equations of motion (with the base motion added) 
+\begin{align}
+\label{eq:nip-dynamics-linear-1}
+& M_0 \ddot{\phi} + K_0 \phi = 0 \nonumber\\
+& \implies  K_0^{-1} M_0 \ddot{\phi} + \phi = 0 \nonumber \\
+& \setlength{\arraycolsep}{1pt}
+\begin{bmatrix}
+l_{1} & \rho_{1,2} l_{2} & \dots & \rho_{1,{\ssN} \sm 1} l_{{\ssN} \sm 1} & \rho_{1,{\ssN}} l_{\ssN} \\
+l_{1} & l_{2} & \dots & \rho_{2,{\ssN} \sm 1} & \rho_{2,{\ssN}} l_{\ssN}\\
+\vdots & \vdots & \ddots & \vdots & \vdots \\
+l_1 & l_2 & \dots & l_{{\ssN} \sm 1} &  \rho_{{\ssN} \sm 1,{\ssN}} l_{\ssN} \\
+l_1 & l_2 & \dots & l_{{\ssN} \sm 1} & l_{\ssN}
+\end{bmatrix} \ddot{\phi} = (g + \ddot{Y}) \phi
+\end{align}
+where
+\begin{align*}
+\rho_{m, n} := \frac{M_n}{M_m} = \frac{\sum\limits_{i=n}^{\ssN} m_i }{\sum\limits_{j=m}^{\ssN} m_j}
+\end{align*}
+is the ratio of the total mass above link \(n \) to the total mass above link \(m \). Note that \(0 < \rho_{m, n} < 1 \) whenever \(n > m \), which is the case for every entry containing \(\rho_{\cdot, \cdot} \) in equation \ref{eq:nip-dynamics-linear-1}.
+#+begin_export latex :exports none
+\begin{align}
+\begin{bmatrix}
+l_1 & l_2 \rho_{2,1} & l_3 \rho_{3,1} & \dots & l_{{\ssN}-1} \rho_{{\ssN}-1,1} & l_{\ssN} \rho_{{\ssN},1} \\
+l_1 &  l_2 & l_3 \rho_{3,2} & \dots & l_{{\ssN}-1} \rho_{{\ssN}-1,2} & l_{\ssN} \rho_{{\ssN},2} \\
+l_1 &  l_2 & l_3 & \dots & l_{{\ssN}-1} \rho_{{\ssN}-1,3} & l_{\ssN} \rho_{{\ssN},3} \\ 
+\vdots &  \vdots & \vdots & \ddots & \vdots & \vdots \\
+l_1 & l_2 & l_3 & \dots & l_{{\ssN}-1} & l_{\ssN} \rho_{{\ssN},{\ssN}-1} \\
+l_1 & l_{2} & l_3 &  \dots & l_{{\ssN}-1} & l_{\ssN}
+ \end{bmatrix} \begin{bmatrix} \ddot{\theta}_{1} \\ \ddot{\theta}_{2} \\ \ddot{\theta}_3 \\ \vdots \\ \ddot{\theta}_{{\ssN}-1} \\ \ddot{\theta}_{\ssN} \end{bmatrix} & = g \begin{bmatrix} \theta_{1} \\ \theta_{2} \\ \theta_3 \\ \vdots \\ \theta_{{\ssN}-1} \\ \theta_{\ssN} \end{bmatrix} \\
+\implies K_0^{-1} M_0 \ddot{\theta} = g \theta
+\end{align}
+\begin{small}
+\begin{align}
+\label{eq:nip-linearized-lagrange-equations-matrix-2}
+& \begin{bmatrix}
+l_1 & l_2 \rho_{2,1} & \dots & l_{{\ssN}-1} \rho_{{\ssN}-1,1} & l_{\ssN} \rho_{{\ssN},1} \\
+l_1 &  l_2 & \dots & l_{{\ssN}-1} \rho_{{\ssN}-1,2} & l_{\ssN} \rho_{{\ssN},2} \\
+\vdots &  \vdots & \ddots & \vdots & \vdots \\
+l_1 & l_2 & \dots & l_{{\ssN}-1} & l_{\ssN} \rho_{{\ssN},{\ssN}-1} \\
+l_1 & l_{2} & \dots & l_{{\ssN}-1} & l_{\ssN}
+ \end{bmatrix} \begin{bmatrix} \ddot{\theta}_{1} \\ \ddot{\theta}_{2} \\ \vdots \\ \ddot{\theta}_{{\ssN}-1} \\ \ddot{\theta}_{\ssN} \end{bmatrix} = g \begin{bmatrix} \theta_{1} \\ \theta_{2} \\ \vdots \\ \theta_{{\ssN}-1} \\ \theta_{\ssN} \end{bmatrix} \\
+& \implies K_0^{-1} M_0 \ddot{\theta} = g \theta \nonumber
+\end{align}
+\end{small}
+#+end_export
+This can be further factorized as
+#+begin_export latex :exports none
+\begin{align}
+\begin{bmatrix}
+1&  \rho_{2,1} &  \rho_{3,1} & \dots &  \rho_{{\ssN}-1,1} &  \rho_{{\ssN},1} \\
+1&  1&  \rho_{3,2} & \dots &  \rho_{{\ssN}-1,2} &  \rho_{{\ssN},2} \\
+1&  1& 1& \dots &  \rho_{{\ssN}-1,3} &  \rho_{{\ssN},3} \\ 
+\vdots &  \vdots & \vdots & \ddots & \vdots & \vdots \\
+1& 1& 1& \dots & 1&  \rho_{{\ssN},{\ssN}-1} \\
+1& 1& 1&  \dots & 1& 1
+ \end{bmatrix}
+\begin{bmatrix}
+l_1 &  &  &  &  & \\
+&  l_2 &  &  &  & \\
+&  &  l_3 &  &  & \\
+ &  &  & \ddots &  &  \\
+&  &  &  &  l_{{\ssN}-1} & \\
+&  &  &     &   &  l_{\ssN}
+\end{bmatrix}
+\begin{bmatrix} \ddot{\theta}_{1} \\ \ddot{\theta}_{2} \\ \ddot{\theta}_3 \\ \vdots \\ \ddot{\theta}_{{\ssN}-1} \\ \ddot{\theta}_{\ssN} \end{bmatrix} & = g \begin{bmatrix} \theta_{1} \\ \theta_{2} \\ \theta_3 \\ \vdots \\ \theta_{{\ssN}-1} \\ \theta_{\ssN} \end{bmatrix} \\
+\implies K_0^{-1} M_0 \ddot{\theta} = g \theta
+\end{align}
+#+end_export
+
+\begin{small}
+\begin{align}
+\label{eq:nip-linearized-lagrange-equations-matrix-3}
+&\begin{bmatrix}
+1&  \rho_{1, 2} & \dots &  \rho_{1, {\ssN} \sm 1} &  \rho_{1, {\ssN}} \\
+1&  1& \dots &  \rho_{2, {\ssN} \sm 1} &  \rho_{2, {\ssN}} \\
+\vdots &  \vdots & \ddots & \vdots & \vdots \\
+1& 1& \dots & 1&  \rho_{{\ssN, {\ssN}} \sm 1} \\
+1& 1&  \dots & 1& 1
+ \end{bmatrix} \times \nonumber\\
+& \quad \begin{bmatrix}
+l_1 &  &  &  &  & \\
+&  l_2 &  &  &  & \\
+ &  &  & \ddots &  &  \\
+&  &  &  &  l_{{\ssN} \sm 1} & \\
+&  &  &     &   &  l_{\ssN}
+\end{bmatrix}
+\begin{bmatrix} \ddot{\phi}_{1} \\ \ddot{\phi}_{2} \\ \vdots \\ \ddot{\phi}_{{\ssN} \sm 1} \\ \ddot{\phi}_{\ssN} \end{bmatrix} = (g + \ddot{Y}) \begin{bmatrix} \phi_{1} \\ \phi_{2} \\ \vdots \\ \phi_{{\ssN} \sm 1} \\ \phi_{\ssN} \end{bmatrix}
+\end{align}
+\end{small}
+We require the eigenvalues of the matrix \(M_0^{-1} K_0 \), which are the inverses of the eigenvalues of \(K_0^{-1} M_0 \). Note that since \(0 < \rho_{m,n} = M_n / M_m < 1 \) in every entry in equation \ref{eq:nip-linearized-lagrange-equations-matrix-3}, \(K_0^{-1} M_0 \) is full rank.
+#+LATEX: \end{appendix}
+* Local setup                                                         :noexport:
+
+* Footnotes
+
+[fn:why-lambda] Note that the \(\lambda_i \) are eigenvalues of \(M_0^{-1} K_0 \) by the properties of the congruence transformation.
+# Local Variables:
+# eval: (add-hook 'org-export-before-processing-hook (lambda (backend) (unless (assoc "autart" (buffer-local-value 'org-latex-classes (current-buffer))) (setq-local org-latex-classes (append '(("autart" "\\documentclass[twocolumn]{autart}" ("\\section{%s}" . "\\section*{%s}") ("\\subsection{%s}" . "\\subsection*{%s}") ("\\subsubsection{%s}" . "\\subsubsection*{%s}") ("\\paragraph{%s}" . "\\paragraph*{%s}") ("\\subparagraph{%s}" . "\\subparagraph*{%s}"))) org-latex-classes)))) nil t)
+# org-refile-targets: ((nil :maxlevel . 3))
+# org-latex-caption-above: nil
+# org-export-with-title: nil
+# eval: (load-file "./publish.el")
+# End:
