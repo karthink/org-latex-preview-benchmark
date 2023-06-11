@@ -7,7 +7,7 @@
 (require 'latex)
 
 (require 'elp)
-(load-file "etrace.el")
+(load-file "../etrace.el")
 (setq etrace-output-file (expand-file-name "./etrace.json"))
 
 (elp-reset-all)
