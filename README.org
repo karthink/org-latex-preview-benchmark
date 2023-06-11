@@ -2,10 +2,12 @@
 
 Thrown together testing setup for Org 9.7's =org-latex-preview=, which is inexplicably 40% $slower with TeXLive 2023 compared to TeXLive 2022.
 
+This set up does not include the =org-latex-preview= library or Org itself.
+
 To run:
 
 - Navigate to =texlive-2022/= in a shell and run =nix develop=.
-- Once it's ready, launch Emacs from here. (Or =emacs -q= if necessary)
+- Once it's ready, launch Emacs (included) from here. (Or =emacs -q= if necessary)
 - Make sure you can access Org 9.7, install it if necessary.
 - =(load-file "test-olp.el")=  (Sets up utility functions and a local =org-persist-directory=)
 - Open an Org file in =test-org=
