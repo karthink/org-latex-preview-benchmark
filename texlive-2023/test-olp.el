@@ -6,6 +6,8 @@
 (require 'org)
 (require 'latex)
 
+(setq org-element-use-cache t)
+
 (require 'elp)
 (load-file "../etrace.el")
 (setq etrace-output-file (expand-file-name "./etrace.json"))
@@ -46,6 +48,16 @@
   (setq my-org-latex-preview-benchmark-time (float-time))
   (org-latex-preview '(16)))
 
+(defun my-org-latex-preview-clear-testing ()
+  (interactive)
+  (remove-hook 'org-latex-preview-process-finish-functions
+               'my/org-latex-preview-benchmark-finish)
+  (elp-reset-all)
+  (elp-restore-all)
+  (garbage-collect)
+  (message "Removed test harness"))
+
 (with-eval-after-load 'org
-  (define-key org-mode-map (kbd "C-c b") #'my-org-latex-preview-benchmark)
+  (define-key org-mode-map (kbd "C-c x") #'my-org-latex-preview-benchmark)
+  (define-key org-mode-map (kbd "C-c X") #'my-org-latex-preview-clear-testing)
   (define-key org-mode-map (kbd "C-c p") #'my-org-latex-preview-precompile-first))
